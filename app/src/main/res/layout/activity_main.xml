@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:padding="8dp"
+        android:background="#DDDDDD">
+
+        <Switch
+            android:id="@+id/modeSwitch"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="View: Encrypted"
+            android:checked="true" />
+
+        <Button
+            android:id="@+id/btnSelectAll"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Select All"
+            android:visibility="gone"
+            style="?android:attr/buttonStyleSmall" />
+
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/btnEncrypt"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Encrypt Selected"
+        android:background="#FF5722"
+        android:textColor="#FFFFFF"
+        android:visibility="gone"
+        android:layout_margin="8dp" />
+
+    <GridView
+        android:id="@+id/gridView"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:numColumns="3"
+        android:horizontalSpacing="4dp"
+        android:verticalSpacing="4dp"
+        android:padding="4dp"
+        android:clipToPadding="false" />
+
+</LinearLayout>

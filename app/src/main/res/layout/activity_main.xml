@@ -10,21 +10,35 @@
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:padding="8dp"
-        android:background="#DDDDDD">
+        android:background="@color/background_grey_dark">
 
         <Switch
             android:id="@+id/modeSwitch"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="View: Encrypted"
+            android:text="@string/view_mode_encrypted"
             android:checked="true" />
+
+        <Button
+            android:id="@+id/btnSort"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/btn_sort"
+            style="?android:attr/buttonStyleSmall" />
+
+        <Button
+            android:id="@+id/btnBrowseFolder"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/btn_browse"
+            style="?android:attr/buttonStyleSmall" />
 
         <Button
             android:id="@+id/btnSelectAll"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Select All"
+            android:text="@string/btn_select_all"
             android:visibility="gone"
             style="?android:attr/buttonStyleSmall" />
 
@@ -34,9 +48,9 @@
         android:id="@+id/btnEncrypt"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Encrypt Selected"
-        android:background="#FF5722"
-        android:textColor="#FFFFFF"
+        android:text="@string/btn_encrypt_selected"
+        android:background="@color/primary_red"
+        android:textColor="@color/white"
         android:visibility="gone"
         android:layout_margin="8dp" />
 

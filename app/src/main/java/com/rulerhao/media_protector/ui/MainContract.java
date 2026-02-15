@@ -34,5 +34,13 @@ public interface MainContract {
         void selectAll();
 
         void encryptSelected();
+
+        void sortFiles(SortOption option);
+
+        void loadFolder(File folder);
+
+        void decryptSelected();
+
+        void deselectAll();
     }
 }

@@ -18,6 +18,7 @@ public class MainPresenter implements MainContract.Presenter {
     private boolean showEncrypted = true;
     private final java.util.Set<File> selectedFiles = new java.util.HashSet<>();
     private java.util.List<File> currentFileList = new java.util.ArrayList<>();
+    private File currentFolder = null;
 
     public MainPresenter(MainContract.View view) {
         this.view = view;
@@ -67,9 +68,6 @@ public class MainPresenter implements MainContract.Presenter {
 
     @Override
     public void toggleSelection(File file) {
-        if (showEncrypted)
-            return; // Only select unencrypted files for now
-
         if (selectedFiles.contains(file)) {
             selectedFiles.remove(file);
         } else {
@@ -80,8 +78,6 @@ public class MainPresenter implements MainContract.Presenter {
 
     @Override
     public void selectAll() {
-        if (showEncrypted)
-            return;
         selectedFiles.addAll(currentFileList);
         view.updateSelectionMode(!selectedFiles.isEmpty(), selectedFiles.size());
     }
@@ -106,7 +102,7 @@ public class MainPresenter implements MainContract.Presenter {
     }
 
     private void loadMedia() {
-        File root = Environment.getExternalStorageDirectory();
+        File root = currentFolder != null ? currentFolder : Environment.getExternalStorageDirectory();
         MediaRepository.ScanCallback callback = files -> {
             currentFileList = files;
             mainHandler.post(() -> view.showFiles(files));
@@ -121,5 +117,56 @@ public class MainPresenter implements MainContract.Presenter {
 
     public java.util.Set<File> getSelectedFiles() {
         return new java.util.HashSet<>(selectedFiles);
+    }
+
+    @Override
+    public void sortFiles(SortOption option) {
+        if (currentFileList == null || currentFileList.isEmpty()) {
+            return;
+        }
+
+        java.util.Collections.sort(currentFileList, (f1, f2) -> {
+            switch (option) {
+                case NAME_ASC:
+                    return f1.getName().compareToIgnoreCase(f2.getName());
+                case NAME_DESC:
+                    return f2.getName().compareToIgnoreCase(f1.getName());
+                case DATE_ASC:
+                    return Long.compare(f1.lastModified(), f2.lastModified());
+                case DATE_DESC:
+                    return Long.compare(f2.lastModified(), f1.lastModified());
+                default:
+                    return 0;
+            }
+        });
+
+        view.showFiles(currentFileList);
+    }
+
+    @Override
+    public void loadFolder(File folder) {
+        this.currentFolder = folder;
+        loadMedia();
+    }
+
+    @Override
+    public void decryptSelected() {
+        if (selectedFiles.isEmpty())
+            return;
+
+        java.util.List<File> toDecrypt = new java.util.ArrayList<>(selectedFiles);
+        repository.decryptFiles(toDecrypt, () -> {
+            selectedFiles.clear();
+            mainHandler.post(() -> {
+                view.updateSelectionMode(false, 0);
+                loadMedia(); // Refresh list (items should disappear from Encrypted list)
+            });
+        });
+    }
+
+    @Override
+    public void deselectAll() {
+        selectedFiles.clear();
+        view.updateSelectionMode(false, 0);
     }
 }

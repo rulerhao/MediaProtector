@@ -1,3 +1,34 @@
 <resources>
-    <string name="app_name">Minimal</string>
+    <string name="app_name">MediaProtector</string>
+    
+    <!-- Buttons -->
+    <string name="btn_select_all">Select All</string>
+    <string name="btn_deselect_all">Deselect All</string>
+    <string name="btn_sort">Sort</string>
+    <string name="btn_browse">Browse</string>
+    <string name="btn_encrypt">Encrypt (%d)</string>
+    <string name="btn_decrypt">Decrypt (%d)</string>
+    <string name="btn_select">Select</string>
+    <string name="btn_encrypt_selected">Encrypt Selected</string>
+    
+    <!-- view modes -->
+    <string name="view_mode_encrypted">View: Encrypted</string>
+    <string name="view_mode_unencrypted">View: Unencrypted</string>
+    
+    <!-- Checkboxes -->
+    <string name="chk_show_filtered_folders">Show only folders with files</string>
+    
+    <!-- Toasts / Messages -->
+    <string name="toast_found_files">Found %d files</string>
+    <string name="toast_permission_denied">Permission denied</string>
+    <string name="toast_browsing_folder">Browsing: %s</string>
+    <string name="toast_no_folders_found">No folders found</string>
+    <string name="toast_encrypting">Encrypting...</string>
+    <string name="toast_decrypting">Decrypting...</string>
+    
+    <!-- Sort Options -->
+    <string name="sort_name_az">Name (A-Z)</string>
+    <string name="sort_name_za">Name (Z-A)</string>
+    <string name="sort_date_oldest">Date (Oldest First)</string>
+    <string name="sort_date_newest">Date (Newest First)</string>
 </resources>

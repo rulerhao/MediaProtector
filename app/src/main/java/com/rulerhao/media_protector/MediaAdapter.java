@@ -89,10 +89,10 @@ public class MediaAdapter extends BaseAdapter {
         // Selection Visual
         if (selectedFiles.contains(file)) {
             holder.thumbnail.setAlpha(0.5f);
-            holder.filename.setTextColor(0xFFFF0000); // Red for selected
+            holder.filename.setTextColor(convertView.getContext().getResources().getColor(R.color.selection_red));
         } else {
             holder.thumbnail.setAlpha(1.0f);
-            holder.filename.setTextColor(0xFF000000); // Black for normal
+            holder.filename.setTextColor(convertView.getContext().getResources().getColor(R.color.black));
         }
 
         // Load thumbnail asynchronously

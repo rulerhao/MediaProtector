@@ -35,4 +35,8 @@
     <string name="sort_name_za">Name (Z-A)</string>
     <string name="sort_date_oldest">Date (Oldest First)</string>
     <string name="sort_date_newest">Date (Newest First)</string>
+
+    <!-- Media Viewer -->
+    <string name="btn_play_pause">Play / Pause</string>
+    <string name="error_load_media">Failed to load media file</string>
 </resources>

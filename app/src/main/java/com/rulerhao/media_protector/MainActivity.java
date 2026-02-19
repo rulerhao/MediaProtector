@@ -31,6 +31,8 @@ public class MainActivity extends Activity implements MainContract.View {
     private Switch modeSwitch;
     private Button btnSelectAll;
     private Button btnEncrypt;
+    /** True when one or more files are selected; taps open the viewer when false. */
+    private boolean selectionActive = false;
 
     private static final int PERMISSION_REQUEST_CODE    = 100;
     private static final int FOLDER_BROWSER_REQUEST_CODE = 200;
@@ -62,12 +64,24 @@ public class MainActivity extends Activity implements MainContract.View {
         modeSwitch.setOnCheckedChangeListener((buttonView, isChecked) ->
                 presenter.switchMode(isChecked));
 
-        // Single item-click listener (duplicate removed)
+        // Tap: open viewer when idle, toggle selection when in selection mode.
         gridView.setOnItemClickListener((parent, view, position, id) -> {
+            Object item = adapter.getItem(position);
+            if (!(item instanceof File)) return;
+            if (selectionActive) {
+                presenter.toggleSelection((File) item);
+            } else {
+                openViewer((File) item);
+            }
+        });
+
+        // Long-press: enter selection mode.
+        gridView.setOnItemLongClickListener((parent, view, position, id) -> {
             Object item = adapter.getItem(position);
             if (item instanceof File) {
                 presenter.toggleSelection((File) item);
             }
+            return true;
         });
 
         btnSelectAll.setOnClickListener(v -> {
@@ -151,6 +165,7 @@ public class MainActivity extends Activity implements MainContract.View {
 
     @Override
     public void updateSelectionMode(boolean enabled, int count) {
+        selectionActive = enabled;
         btnSelectAll.setVisibility(View.VISIBLE);
         btnEncrypt.setVisibility(enabled ? View.VISIBLE : View.GONE);
         btnEncrypt.setEnabled(true); // re-enable if returning from an operation
@@ -169,6 +184,7 @@ public class MainActivity extends Activity implements MainContract.View {
 
     @Override
     public void updateMode(boolean isEncryptedMode) {
+        selectionActive = false;
         adapter.setShowEncrypted(isEncryptedMode);
         modeSwitch.setChecked(isEncryptedMode);
         modeSwitch.setText(isEncryptedMode ? R.string.view_mode_encrypted : R.string.view_mode_unencrypted);
@@ -222,6 +238,17 @@ public class MainActivity extends Activity implements MainContract.View {
         adapter.destroy(); // shut down ThumbnailLoader threads before presenter
         presenter.onDestroy();
         super.onDestroy();
+    }
+
+    // -------------------------------------------------------------------------
+    // Viewer
+    // -------------------------------------------------------------------------
+
+    private void openViewer(File file) {
+        Intent intent = new Intent(this, MediaViewerActivity.class);
+        intent.putExtra(MediaViewerActivity.EXTRA_FILE_PATH, file.getAbsolutePath());
+        intent.putExtra(MediaViewerActivity.EXTRA_ENCRYPTED, modeSwitch.isChecked());
+        startActivity(intent);
     }
 
     // -------------------------------------------------------------------------

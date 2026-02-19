@@ -2,12 +2,14 @@ package com.rulerhao.media_protector.util;
 
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.media.MediaMetadataRetriever;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.LruCache;
 import android.widget.ImageView;
 
 import com.rulerhao.media_protector.crypto.HeaderObfuscator;
+import com.rulerhao.media_protector.data.FileConfig;
 
 import java.io.File;
 import java.io.IOException;
@@ -80,8 +82,18 @@ public class ThumbnailLoader {
     // -------------------------------------------------------------------------
 
     private Bitmap decode(File file, boolean encrypted) {
+        // Resolve the original filename so we can detect the media type correctly.
+        String originalName = encrypted
+                ? HeaderObfuscator.getOriginalName(file)
+                : file.getName();
+
+        if (FileConfig.isVideoFile(originalName)) {
+            return decodeVideoFrame(file, encrypted);
+        }
+
+        // Image path: decode via BitmapFactory with 1/4 resolution downsampling.
         BitmapFactory.Options opts = new BitmapFactory.Options();
-        opts.inSampleSize = 4; // 1/4 resolution for grid display
+        opts.inSampleSize = 4;
         try {
             if (encrypted) {
                 try (InputStream is = obfuscator.getDecryptedStream(file)) {
@@ -93,6 +105,43 @@ public class ThumbnailLoader {
         } catch (IOException e) {
             // File may be unreadable or corrupt; silently skip
             return null;
+        }
+    }
+
+    /**
+     * Extracts a representative frame from a video file using {@link MediaMetadataRetriever}.
+     * For encrypted files, feeds the retriever via {@link EncryptedMediaDataSource} so no
+     * temporary copy is written to disk.
+     */
+    private Bitmap decodeVideoFrame(File file, boolean encrypted) {
+        MediaMetadataRetriever retriever = new MediaMetadataRetriever();
+        EncryptedMediaDataSource dataSource = null;
+        try {
+            if (encrypted) {
+                dataSource = new EncryptedMediaDataSource(file);
+                retriever.setDataSource(dataSource);
+            } else {
+                retriever.setDataSource(file.getAbsolutePath());
+            }
+
+            Bitmap frame = retriever.getFrameAtTime(
+                    0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC);
+            if (frame == null) return null;
+
+            // Scale down to approximately 1/4 dimensions to match the image inSampleSize=4.
+            int w = Math.max(1, frame.getWidth()  / 4);
+            int h = Math.max(1, frame.getHeight() / 4);
+            Bitmap scaled = Bitmap.createScaledBitmap(frame, w, h, false);
+            frame.recycle();
+            return scaled;
+
+        } catch (IOException | IllegalArgumentException e) {
+            return null;
+        } finally {
+            try { retriever.release(); } catch (Exception ignored) {}
+            if (dataSource != null) {
+                try { dataSource.close(); } catch (IOException ignored) {}
+            }
         }
     }
 }

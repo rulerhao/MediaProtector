@@ -14,11 +14,11 @@ import android.widget.GridView;
 import android.widget.Switch;
 import android.widget.Toast;
 import android.view.View;
-import android.widget.AdapterView;
-import android.widget.CompoundButton;
 
+import com.rulerhao.media_protector.data.MediaRepository;
 import com.rulerhao.media_protector.ui.MainContract;
 import com.rulerhao.media_protector.ui.MainPresenter;
+import com.rulerhao.media_protector.ui.SortOption;
 
 import java.io.File;
 import java.util.List;
@@ -31,9 +31,8 @@ public class MainActivity extends Activity implements MainContract.View {
     private Switch modeSwitch;
     private Button btnSelectAll;
     private Button btnEncrypt;
-    private Button btnBrowseFolder;
 
-    private static final int PERMISSION_REQUEST_CODE = 100;
+    private static final int PERMISSION_REQUEST_CODE    = 100;
     private static final int FOLDER_BROWSER_REQUEST_CODE = 200;
 
     @Override
@@ -41,60 +40,58 @@ public class MainActivity extends Activity implements MainContract.View {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        gridView = findViewById(R.id.gridView);
-        modeSwitch = findViewById(R.id.modeSwitch);
+        gridView     = findViewById(R.id.gridView);
+        modeSwitch   = findViewById(R.id.modeSwitch);
         btnSelectAll = findViewById(R.id.btnSelectAll);
-        btnEncrypt = findViewById(R.id.btnEncrypt);
-        Button btnSort = findViewById(R.id.btnSort);
-        btnBrowseFolder = findViewById(R.id.btnBrowseFolder);
-
-        btnSort.setOnClickListener(v -> showSortMenu(v));
-        btnBrowseFolder.setOnClickListener(v -> {
-            Intent intent = new Intent(this, FolderBrowserActivity.class);
-            startActivityForResult(intent, FOLDER_BROWSER_REQUEST_CODE);
-        });
+        btnEncrypt   = findViewById(R.id.btnEncrypt);
+        Button btnSort        = findViewById(R.id.btnSort);
+        Button btnBrowseFolder = findViewById(R.id.btnBrowseFolder);
 
         adapter = new MediaAdapter(this);
         gridView.setAdapter(adapter);
 
-        presenter = new MainPresenter(this);
+        presenter = new MainPresenter(this, new MediaRepository());
 
-        modeSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            presenter.switchMode(isChecked);
+        btnSort.setOnClickListener(this::showSortMenu);
+        btnBrowseFolder.setOnClickListener(v -> {
+            Intent intent = new Intent(this, FolderBrowserActivity.class);
+            intent.putExtra(FolderBrowserActivity.EXTRA_SHOW_ENCRYPTED, modeSwitch.isChecked());
+            startActivityForResult(intent, FOLDER_BROWSER_REQUEST_CODE);
         });
 
-        gridView.setOnItemClickListener((parent, view, position, id) -> {
-            File file = (File) adapter.getItem(position);
-            presenter.toggleSelection(file);
-        });
+        modeSwitch.setOnCheckedChangeListener((buttonView, isChecked) ->
+                presenter.switchMode(isChecked));
 
+        // Single item-click listener (duplicate removed)
         gridView.setOnItemClickListener((parent, view, position, id) -> {
-            File file = (File) adapter.getItem(position);
-            presenter.toggleSelection(file);
+            Object item = adapter.getItem(position);
+            if (item instanceof File) {
+                presenter.toggleSelection((File) item);
+            }
         });
 
         btnSelectAll.setOnClickListener(v -> {
-            // Toggle between select all and deselect all
             if (btnSelectAll.getText().toString().equals(getString(R.string.btn_select_all))) {
                 presenter.selectAll();
             } else {
                 presenter.deselectAll();
             }
         });
+
         btnEncrypt.setOnClickListener(v -> {
             if (modeSwitch.isChecked()) {
-                // Encrypted mode - decrypt
-                Toast.makeText(this, R.string.toast_decrypting, Toast.LENGTH_SHORT).show();
                 presenter.decryptSelected();
             } else {
-                // Unencrypted mode - encrypt
-                Toast.makeText(this, R.string.toast_encrypting, Toast.LENGTH_SHORT).show();
                 presenter.encryptSelected();
             }
         });
 
         presenter.onCreate();
     }
+
+    // -------------------------------------------------------------------------
+    // MainContract.View
+    // -------------------------------------------------------------------------
 
     @Override
     public void showFiles(List<File> files) {
@@ -108,9 +105,30 @@ public class MainActivity extends Activity implements MainContract.View {
     }
 
     @Override
+    public void showError(String message) {
+        Toast.makeText(this, message != null ? message : getString(R.string.error_generic), Toast.LENGTH_LONG).show();
+    }
+
+    @Override
+    public void showOperationResult(int succeeded, int failed) {
+        btnEncrypt.setEnabled(true);
+        Toast.makeText(this,
+                getString(R.string.toast_operation_result, succeeded, failed),
+                Toast.LENGTH_SHORT).show();
+    }
+
+    @Override
+    public void showProgress(int done, int total, boolean encrypting) {
+        btnEncrypt.setEnabled(false);
+        btnEncrypt.setText(getString(
+                encrypting ? R.string.progress_encrypting : R.string.progress_decrypting,
+                done, total));
+    }
+
+    @Override
     public void requestStoragePermission() {
         if (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new String[] {
+            requestPermissions(new String[]{
                     Manifest.permission.READ_EXTERNAL_STORAGE,
                     Manifest.permission.WRITE_EXTERNAL_STORAGE
             }, PERMISSION_REQUEST_CODE);
@@ -135,21 +153,15 @@ public class MainActivity extends Activity implements MainContract.View {
     public void updateSelectionMode(boolean enabled, int count) {
         btnSelectAll.setVisibility(View.VISIBLE);
         btnEncrypt.setVisibility(enabled ? View.VISIBLE : View.GONE);
-        
-        // Update Select All button text based on selection state
-        if (enabled && count > 0) {
-            btnSelectAll.setText(R.string.btn_deselect_all);
-        } else {
-            btnSelectAll.setText(R.string.btn_select_all);
-        }
-        
-        // Update encrypt/decrypt button text based on mode
-        if (modeSwitch.isChecked()) {
-            btnEncrypt.setText(getString(R.string.btn_decrypt, count));
-        } else {
-            btnEncrypt.setText(getString(R.string.btn_encrypt, count));
-        }
+        btnEncrypt.setEnabled(true); // re-enable if returning from an operation
 
+        btnSelectAll.setText(enabled && count > 0 ? R.string.btn_deselect_all : R.string.btn_select_all);
+
+        btnEncrypt.setText(modeSwitch.isChecked()
+                ? getString(R.string.btn_decrypt, count)
+                : getString(R.string.btn_encrypt, count));
+
+        // Sync adapter selection state through the presenter cast-free contract
         if (presenter instanceof MainPresenter) {
             adapter.updateSelection(((MainPresenter) presenter).getSelectedFiles());
         }
@@ -164,6 +176,10 @@ public class MainActivity extends Activity implements MainContract.View {
         btnSelectAll.setVisibility(View.VISIBLE);
         btnEncrypt.setVisibility(View.GONE);
     }
+
+    // -------------------------------------------------------------------------
+    // Permission callbacks
+    // -------------------------------------------------------------------------
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
@@ -187,17 +203,30 @@ public class MainActivity extends Activity implements MainContract.View {
                     presenter.onPermissionDenied();
                 }
             }
-        } else if (requestCode == FOLDER_BROWSER_REQUEST_CODE && resultCode == RESULT_OK) {
-            if (data != null) {
-                String folderPath = data.getStringExtra(FolderBrowserActivity.EXTRA_SELECTED_FOLDER);
-                if (folderPath != null) {
-                    File selectedFolder = new File(folderPath);
-                    presenter.loadFolder(selectedFolder);
-                    Toast.makeText(this, getString(R.string.toast_browsing_folder, selectedFolder.getName()), Toast.LENGTH_SHORT).show();
-                }
+        } else if (requestCode == FOLDER_BROWSER_REQUEST_CODE && resultCode == RESULT_OK && data != null) {
+            String folderPath = data.getStringExtra(FolderBrowserActivity.EXTRA_SELECTED_FOLDER);
+            if (folderPath != null) {
+                File selectedFolder = new File(folderPath);
+                presenter.loadFolder(selectedFolder);
+                Toast.makeText(this, getString(R.string.toast_browsing_folder, selectedFolder.getName()), Toast.LENGTH_SHORT).show();
             }
         }
     }
+
+    // -------------------------------------------------------------------------
+    // Lifecycle
+    // -------------------------------------------------------------------------
+
+    @Override
+    protected void onDestroy() {
+        adapter.destroy(); // shut down ThumbnailLoader threads before presenter
+        presenter.onDestroy();
+        super.onDestroy();
+    }
+
+    // -------------------------------------------------------------------------
+    // Sort menu
+    // -------------------------------------------------------------------------
 
     private void showSortMenu(View v) {
         android.widget.PopupMenu popup = new android.widget.PopupMenu(this, v);
@@ -208,23 +237,15 @@ public class MainActivity extends Activity implements MainContract.View {
 
         popup.setOnMenuItemClickListener(item -> {
             int id = item.getItemId();
-            com.rulerhao.media_protector.ui.SortOption option = null;
-            if (id == 0) option = com.rulerhao.media_protector.ui.SortOption.NAME_ASC;
-            else if (id == 1) option = com.rulerhao.media_protector.ui.SortOption.NAME_DESC;
-            else if (id == 2) option = com.rulerhao.media_protector.ui.SortOption.DATE_ASC;
-            else if (id == 3) option = com.rulerhao.media_protector.ui.SortOption.DATE_DESC;
+            SortOption option = null;
+            if (id == 0) option = SortOption.NAME_ASC;
+            else if (id == 1) option = SortOption.NAME_DESC;
+            else if (id == 2) option = SortOption.DATE_ASC;
+            else if (id == 3) option = SortOption.DATE_DESC;
 
-            if (option != null) {
-                presenter.sortFiles(option);
-            }
+            if (option != null) presenter.sortFiles(option);
             return true;
         });
         popup.show();
-    }
-
-    @Override
-    protected void onDestroy() {
-        presenter.onDestroy();
-        super.onDestroy();
     }
 }

@@ -16,6 +16,12 @@ public interface MainContract {
         void updateSelectionMode(boolean enabled, int count);
 
         void updateMode(boolean isEncryptedMode);
+
+        void showError(String message);
+
+        void showOperationResult(int succeeded, int failed);
+
+        void showProgress(int done, int total, boolean encrypting);
     }
 
     interface Presenter {

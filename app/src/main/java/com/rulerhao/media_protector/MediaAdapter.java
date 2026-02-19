@@ -1,10 +1,6 @@
 package com.rulerhao.media_protector;
 
 import android.content.Context;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.os.Handler;
-import android.os.Looper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -13,25 +9,26 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import com.rulerhao.media_protector.crypto.HeaderObfuscator;
+import com.rulerhao.media_protector.util.ThumbnailLoader;
 
 import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.Set;
 
 public class MediaAdapter extends BaseAdapter {
 
     private final List<File> files = new ArrayList<>();
     private final LayoutInflater inflater;
-    private final HeaderObfuscator obfuscator = new HeaderObfuscator();
-    private final ExecutorService executor = Executors.newFixedThreadPool(4);
-    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final ThumbnailLoader thumbnailLoader;
+
+    private boolean showEncrypted = true;
+    private final Set<File> selectedFiles = new HashSet<>();
 
     public MediaAdapter(Context context) {
         this.inflater = LayoutInflater.from(context);
+        this.thumbnailLoader = new ThumbnailLoader();
     }
 
     public void setFiles(List<File> newFiles) {
@@ -40,33 +37,24 @@ public class MediaAdapter extends BaseAdapter {
         notifyDataSetChanged();
     }
 
-    @Override
-    public int getCount() {
-        return files.size();
-    }
-
-    @Override
-    public Object getItem(int position) {
-        return files.get(position);
-    }
-
-    @Override
-    public long getItemId(int position) {
-        return position;
-    }
-
-    private boolean showEncrypted = true;
-    private final java.util.Set<File> selectedFiles = new java.util.HashSet<>();
-
     public void setShowEncrypted(boolean showEncrypted) {
         this.showEncrypted = showEncrypted;
     }
 
-    public void updateSelection(java.util.Set<File> selection) {
-        this.selectedFiles.clear();
-        this.selectedFiles.addAll(selection);
+    public void updateSelection(Set<File> selection) {
+        selectedFiles.clear();
+        selectedFiles.addAll(selection);
         notifyDataSetChanged();
     }
+
+    /** Must be called from {@code Activity.onDestroy()} to release background threads. */
+    public void destroy() {
+        thumbnailLoader.destroy();
+    }
+
+    @Override public int getCount() { return files.size(); }
+    @Override public Object getItem(int position) { return files.get(position); }
+    @Override public long getItemId(int position) { return position; }
 
     @Override
     public View getView(int position, View convertView, ViewGroup parent) {
@@ -82,57 +70,23 @@ public class MediaAdapter extends BaseAdapter {
         }
 
         File file = files.get(position);
-        holder.filename.setText(showEncrypted ? HeaderObfuscator.getOriginalName(file) : file.getName());
-        holder.thumbnail.setImageResource(android.R.drawable.ic_menu_gallery); // Placeholder
-        holder.thumbnail.setTag(file.getAbsolutePath()); // For async checking
+        holder.filename.setText(
+                showEncrypted ? HeaderObfuscator.getOriginalName(file) : file.getName());
 
-        // Selection Visual
-        if (selectedFiles.contains(file)) {
-            holder.thumbnail.setAlpha(0.5f);
-            holder.filename.setTextColor(convertView.getContext().getResources().getColor(R.color.selection_red));
-        } else {
-            holder.thumbnail.setAlpha(1.0f);
-            holder.filename.setTextColor(convertView.getContext().getResources().getColor(R.color.black));
-        }
+        // Selection visuals
+        boolean selected = selectedFiles.contains(file);
+        holder.thumbnail.setAlpha(selected ? 0.5f : 1.0f);
+        holder.filename.setTextColor(convertView.getContext().getColor(
+                selected ? R.color.selection_red : R.color.black));
 
-        // Load thumbnail asynchronously
-        executor.execute(() -> {
-            try {
-                final Bitmap bitmap;
-                if (showEncrypted) {
-                    // Decrypt on the fly!
-                    InputStream componentStream = obfuscator.getDecryptedStream(file);
-
-                    BitmapFactory.Options options = new BitmapFactory.Options();
-                    options.inSampleSize = 4; // Downsample for grid
-
-                    bitmap = BitmapFactory.decodeStream(componentStream, null, options);
-                    componentStream.close();
-                } else {
-                    // Load normal file
-                    BitmapFactory.Options options = new BitmapFactory.Options();
-                    options.inSampleSize = 4;
-                    bitmap = BitmapFactory.decodeFile(file.getAbsolutePath(), options);
-                }
-
-                if (bitmap != null) {
-                    mainHandler.post(() -> {
-                        // Check if view is still reused for the same file
-                        if (file.getAbsolutePath().equals(holder.thumbnail.getTag())) {
-                            holder.thumbnail.setImageBitmap(bitmap);
-                        }
-                    });
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        });
+        // Async thumbnail via ThumbnailLoader (handles caching + stale-view check internally)
+        thumbnailLoader.loadThumbnail(file, showEncrypted, holder.thumbnail);
 
         return convertView;
     }
 
     private static class ViewHolder {
         ImageView thumbnail;
-        TextView filename;
+        TextView  filename;
     }
 }

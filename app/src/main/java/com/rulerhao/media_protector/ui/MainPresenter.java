@@ -8,37 +8,62 @@ import android.os.Looper;
 import com.rulerhao.media_protector.data.MediaRepository;
 
 import java.io.File;
+import java.lang.ref.WeakReference;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 public class MainPresenter implements MainContract.Presenter {
 
-    private final MainContract.View view;
+    private final WeakReference<MainContract.View> viewRef;
     private final MediaRepository repository;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     private boolean showEncrypted = true;
-    private final java.util.Set<File> selectedFiles = new java.util.HashSet<>();
-    private java.util.List<File> currentFileList = new java.util.ArrayList<>();
+    private final Set<File> selectedFiles = new HashSet<>();
+    private List<File> currentFileList = new ArrayList<>();
     private File currentFolder = null;
 
-    public MainPresenter(MainContract.View view) {
-        this.view = view;
-        this.repository = new MediaRepository();
+    /** Guards against callbacks firing after onDestroy(). */
+    private volatile boolean destroyed = false;
+    /** Prevents overlapping encrypt/decrypt operations. */
+    private volatile boolean operationInProgress = false;
+
+    public MainPresenter(MainContract.View view, MediaRepository repository) {
+        this.viewRef = new WeakReference<>(view);
+        this.repository = repository;
     }
+
+    // -------------------------------------------------------------------------
+    // Lifecycle
+    // -------------------------------------------------------------------------
 
     @Override
     public void onCreate() {
         checkPermissions();
     }
 
+    @Override
+    public void onDestroy() {
+        destroyed = true;
+        repository.destroy();
+    }
+
+    // -------------------------------------------------------------------------
+    // Permissions
+    // -------------------------------------------------------------------------
+
     private void checkPermissions() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             if (Environment.isExternalStorageManager()) {
                 loadMedia();
             } else {
-                view.requestManageAllFilesPermission();
+                withView(MainContract.View::requestManageAllFilesPermission);
             }
         } else {
-            view.requestStoragePermission();
+            withView(MainContract.View::requestStoragePermission);
         }
     }
 
@@ -49,20 +74,21 @@ public class MainPresenter implements MainContract.Presenter {
 
     @Override
     public void onPermissionDenied() {
-        view.showPermissionError();
+        withView(MainContract.View::showPermissionError);
     }
 
-    @Override
-    public void onDestroy() {
-        // Cleanup if needed
-    }
+    // -------------------------------------------------------------------------
+    // Mode / selection
+    // -------------------------------------------------------------------------
 
     @Override
     public void switchMode(boolean showEncrypted) {
         this.showEncrypted = showEncrypted;
-        this.selectedFiles.clear();
-        view.updateSelectionMode(false, 0);
-        view.updateMode(showEncrypted);
+        selectedFiles.clear();
+        withView(v -> {
+            v.updateSelectionMode(false, 0);
+            v.updateMode(showEncrypted);
+        });
         loadMedia();
     }
 
@@ -73,39 +99,97 @@ public class MainPresenter implements MainContract.Presenter {
         } else {
             selectedFiles.add(file);
         }
-        view.updateSelectionMode(!selectedFiles.isEmpty(), selectedFiles.size());
+        withView(v -> v.updateSelectionMode(!selectedFiles.isEmpty(), selectedFiles.size()));
     }
 
     @Override
     public void selectAll() {
         selectedFiles.addAll(currentFileList);
-        view.updateSelectionMode(!selectedFiles.isEmpty(), selectedFiles.size());
+        withView(v -> v.updateSelectionMode(!selectedFiles.isEmpty(), selectedFiles.size()));
     }
 
     @Override
-    public void encryptSelected() {
-        if (selectedFiles.isEmpty())
-            return;
+    public void deselectAll() {
+        selectedFiles.clear();
+        withView(v -> v.updateSelectionMode(false, 0));
+    }
 
-        java.util.List<File> toEncrypt = new java.util.ArrayList<>(selectedFiles);
-        repository.encryptFiles(toEncrypt, () -> {
-            selectedFiles.clear();
-            mainHandler.post(() -> {
-                view.updateSelectionMode(false, 0);
-                loadMedia(); // Refresh list (items should disappear from Unencrypted list)
-            });
+    public Set<File> getSelectedFiles() {
+        return new HashSet<>(selectedFiles);
+    }
+
+    // -------------------------------------------------------------------------
+    // Encrypt / Decrypt
+    // -------------------------------------------------------------------------
+
+    @Override
+    public void encryptSelected() {
+        if (selectedFiles.isEmpty() || operationInProgress) return;
+
+        operationInProgress = true;
+        // Snapshot and clear selection BEFORE background work (avoids race with UI thread)
+        List<File> toEncrypt = new ArrayList<>(selectedFiles);
+        selectedFiles.clear();
+        withView(v -> v.updateSelectionMode(false, 0));
+
+        repository.encryptFiles(toEncrypt, new MediaRepository.OperationCallback() {
+            @Override
+            public void onProgress(int done, int total) {
+                postIfAlive(() -> withView(v -> v.showProgress(done, total, true)));
+            }
+            @Override
+            public void onComplete(int succeeded, int failed) {
+                operationInProgress = false;
+                postIfAlive(() -> {
+                    withView(v -> v.showOperationResult(succeeded, failed));
+                    loadMedia();
+                });
+            }
         });
     }
 
-    public boolean isSelected(File file) {
-        return selectedFiles.contains(file);
+    @Override
+    public void decryptSelected() {
+        if (selectedFiles.isEmpty() || operationInProgress) return;
+
+        operationInProgress = true;
+        List<File> toDecrypt = new ArrayList<>(selectedFiles);
+        selectedFiles.clear();
+        withView(v -> v.updateSelectionMode(false, 0));
+
+        repository.decryptFiles(toDecrypt, new MediaRepository.OperationCallback() {
+            @Override
+            public void onProgress(int done, int total) {
+                postIfAlive(() -> withView(v -> v.showProgress(done, total, false)));
+            }
+            @Override
+            public void onComplete(int succeeded, int failed) {
+                operationInProgress = false;
+                postIfAlive(() -> {
+                    withView(v -> v.showOperationResult(succeeded, failed));
+                    loadMedia();
+                });
+            }
+        });
     }
+
+    // -------------------------------------------------------------------------
+    // Load / Sort / Folder
+    // -------------------------------------------------------------------------
 
     private void loadMedia() {
         File root = currentFolder != null ? currentFolder : Environment.getExternalStorageDirectory();
-        MediaRepository.ScanCallback callback = files -> {
-            currentFileList = files;
-            mainHandler.post(() -> view.showFiles(files));
+
+        MediaRepository.ScanCallback callback = new MediaRepository.ScanCallback() {
+            @Override
+            public void onScanComplete(List<File> files) {
+                currentFileList = files;
+                postIfAlive(() -> withView(v -> v.showFiles(files)));
+            }
+            @Override
+            public void onScanError(Exception e) {
+                postIfAlive(() -> withView(v -> v.showError(e.getMessage())));
+            }
         };
 
         if (showEncrypted) {
@@ -115,32 +199,21 @@ public class MainPresenter implements MainContract.Presenter {
         }
     }
 
-    public java.util.Set<File> getSelectedFiles() {
-        return new java.util.HashSet<>(selectedFiles);
-    }
-
     @Override
     public void sortFiles(SortOption option) {
-        if (currentFileList == null || currentFileList.isEmpty()) {
-            return;
-        }
+        if (currentFileList == null || currentFileList.isEmpty()) return;
 
-        java.util.Collections.sort(currentFileList, (f1, f2) -> {
+        Collections.sort(currentFileList, (f1, f2) -> {
             switch (option) {
-                case NAME_ASC:
-                    return f1.getName().compareToIgnoreCase(f2.getName());
-                case NAME_DESC:
-                    return f2.getName().compareToIgnoreCase(f1.getName());
-                case DATE_ASC:
-                    return Long.compare(f1.lastModified(), f2.lastModified());
-                case DATE_DESC:
-                    return Long.compare(f2.lastModified(), f1.lastModified());
-                default:
-                    return 0;
+                case NAME_ASC: return f1.getName().compareToIgnoreCase(f2.getName());
+                case NAME_DESC: return f2.getName().compareToIgnoreCase(f1.getName());
+                case DATE_ASC: return Long.compare(f1.lastModified(), f2.lastModified());
+                case DATE_DESC: return Long.compare(f2.lastModified(), f1.lastModified());
+                default: return 0;
             }
         });
 
-        view.showFiles(currentFileList);
+        withView(v -> v.showFiles(currentFileList));
     }
 
     @Override
@@ -149,24 +222,24 @@ public class MainPresenter implements MainContract.Presenter {
         loadMedia();
     }
 
-    @Override
-    public void decryptSelected() {
-        if (selectedFiles.isEmpty())
-            return;
+    // -------------------------------------------------------------------------
+    // Helpers
+    // -------------------------------------------------------------------------
 
-        java.util.List<File> toDecrypt = new java.util.ArrayList<>(selectedFiles);
-        repository.decryptFiles(toDecrypt, () -> {
-            selectedFiles.clear();
-            mainHandler.post(() -> {
-                view.updateSelectionMode(false, 0);
-                loadMedia(); // Refresh list (items should disappear from Encrypted list)
-            });
+    /** Runs {@code action} on the main thread only if the presenter is still alive. */
+    private void postIfAlive(Runnable action) {
+        mainHandler.post(() -> {
+            if (!destroyed) action.run();
         });
     }
 
-    @Override
-    public void deselectAll() {
-        selectedFiles.clear();
-        view.updateSelectionMode(false, 0);
+    /** Calls {@code action} with the View if it is still reachable. */
+    private void withView(ViewAction action) {
+        MainContract.View v = viewRef.get();
+        if (v != null) action.run(v);
+    }
+
+    private interface ViewAction {
+        void run(MainContract.View view);
     }
 }

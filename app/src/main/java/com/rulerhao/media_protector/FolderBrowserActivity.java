@@ -4,7 +4,10 @@ import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -19,47 +22,53 @@ import java.util.List;
 public class FolderBrowserActivity extends Activity {
 
     public static final String EXTRA_SELECTED_FOLDER = "selected_folder";
-    
+    public static final String EXTRA_SHOW_ENCRYPTED  = "show_encrypted";
+
     private TextView tvCurrentPath;
-    private ListView folderList;
     private FolderAdapter adapter;
     private File currentFolder;
-    private android.widget.CheckBox chkShowOnlyNonEmpty;
+    private CheckBox chkShowOnlyNonEmpty;
     private boolean showOnlyNonEmpty = false;
+    private boolean showEncrypted = true;
     private MediaRepository repository;
+
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    /** Guards against callbacks arriving after onDestroy(). */
+    private volatile boolean destroyed = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_folder_browser);
 
-        tvCurrentPath = findViewById(R.id.tvCurrentPath);
-        folderList = findViewById(R.id.folderList);
+        tvCurrentPath  = findViewById(R.id.tvCurrentPath);
+        ListView folderList = findViewById(R.id.folderList);
         Button btnSelectFolder = findViewById(R.id.btnSelectFolder);
         chkShowOnlyNonEmpty = findViewById(R.id.chkShowOnlyNonEmpty);
+
+        showEncrypted = getIntent().getBooleanExtra(EXTRA_SHOW_ENCRYPTED, true);
 
         repository = new MediaRepository();
         adapter = new FolderAdapter(this);
         folderList.setAdapter(adapter);
 
-        // Checkbox listener
         chkShowOnlyNonEmpty.setOnCheckedChangeListener((buttonView, isChecked) -> {
             showOnlyNonEmpty = isChecked;
             loadFolder(currentFolder);
         });
 
-        // Start at external storage root
         currentFolder = Environment.getExternalStorageDirectory();
         loadFolder(currentFolder);
 
         folderList.setOnItemClickListener((parent, view, position, id) -> {
-            File selectedFolder = (File) adapter.getItem(position);
-            
+            Object item = adapter.getItem(position);
+            if (item == null) return;
+            File selectedFolder = (File) item;
+
             if (selectedFolder.getName().equals("..")) {
-                // Go up one level
-                File parent1 = currentFolder.getParentFile();
-                if (parent1 != null && parent1.canRead()) {
-                    currentFolder = parent1;
+                File parentDir = currentFolder.getParentFile();
+                if (parentDir != null && parentDir.canRead()) {
+                    currentFolder = parentDir;
                     loadFolder(currentFolder);
                 }
             } else if (selectedFolder.isDirectory()) {
@@ -76,39 +85,71 @@ public class FolderBrowserActivity extends Activity {
         });
     }
 
+    @Override
+    protected void onDestroy() {
+        destroyed = true;
+        repository.destroy();
+        super.onDestroy();
+    }
+
+    // -------------------------------------------------------------------------
+
     private void loadFolder(File folder) {
         tvCurrentPath.setText(folder.getAbsolutePath());
-        
-        List<File> folders = new ArrayList<>();
-        
-        // Add parent directory option if not at root
-        if (folder.getParentFile() != null) {
-            File parentMarker = new File(folder, "..");
-            folders.add(parentMarker);
+
+        if (!showOnlyNonEmpty) {
+            // Fast path: no media-presence check needed, build list on UI thread
+            adapter.setFolders(buildFolderList(folder, null));
+            if (adapter.getCount() == 0) {
+                Toast.makeText(this, R.string.toast_no_folders_found, Toast.LENGTH_SHORT).show();
+            }
+            return;
         }
 
-        // List all directories
+        // Slow path: hasMediaFiles() traverses subdirectories; run on background thread.
+        // Collect visible directories first (fast, no deep traversal).
+        List<File> candidates = buildFolderList(folder, null);
+        new Thread(() -> {
+            List<File> filtered = new ArrayList<>();
+            for (File f : candidates) {
+                if (f.getName().equals("..") || repository.hasMediaFiles(f, showEncrypted)) {
+                    filtered.add(f);
+                }
+            }
+            mainHandler.post(() -> {
+                if (destroyed) return;
+                adapter.setFolders(filtered);
+                if (adapter.getCount() == 0) {
+                    Toast.makeText(FolderBrowserActivity.this,
+                            R.string.toast_no_folders_found, Toast.LENGTH_SHORT).show();
+                }
+            });
+        }).start();
+    }
+
+    /**
+     * Builds the list of immediate subdirectories of {@code folder}.
+     * Pass a non-null {@code filter} to apply a predicate (unused for the non-filtered path).
+     */
+    private List<File> buildFolderList(File folder, java.io.FileFilter filter) {
+        List<File> result = new ArrayList<>();
+
+        // Parent marker
+        if (folder.getParentFile() != null) {
+            result.add(new File(folder, ".."));
+        }
+
         File[] files = folder.listFiles();
         if (files != null) {
             Arrays.sort(files, (f1, f2) -> f1.getName().compareToIgnoreCase(f2.getName()));
-            for (File file : files) {
-                if (file.isDirectory() && !file.isHidden()) {
-                    // Apply filter if checkbox is checked
-                    if (showOnlyNonEmpty) {
-                        if (repository.hasMediaFiles(file)) {
-                            folders.add(file);
-                        }
-                    } else {
-                        folders.add(file);
+            for (File f : files) {
+                if (f.isDirectory() && !f.isHidden()) {
+                    if (filter == null || filter.accept(f)) {
+                        result.add(f);
                     }
                 }
             }
         }
-
-        adapter.setFolders(folders);
-        
-        if (folders.isEmpty()) {
-            Toast.makeText(this, R.string.toast_no_folders_found, Toast.LENGTH_SHORT).show();
-        }
+        return result;
     }
 }

@@ -135,7 +135,11 @@ public class ThumbnailLoader {
             frame.recycle();
             return scaled;
 
-        } catch (IOException | IllegalArgumentException e) {
+        } catch (Exception e) {
+            // MediaMetadataRetriever.setDataSource(MediaDataSource) can throw RuntimeException
+            // (status 0x80000000) on some OEM/MIUI devices that don't fully support the
+            // MediaDataSource callback interface.  Fall through to return null so the grid
+            // shows the placeholder rather than crashing.
             return null;
         } finally {
             try { retriever.release(); } catch (Exception ignored) {}

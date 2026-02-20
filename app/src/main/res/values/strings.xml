@@ -39,4 +39,11 @@
     <!-- Media Viewer -->
     <string name="btn_play_pause">Play / Pause</string>
     <string name="error_load_media">Failed to load media file</string>
+
+    <!-- Mode tabs -->
+    <string name="tab_protected">Protected</string>
+    <string name="tab_original">Original</string>
+
+    <!-- Empty state -->
+    <string name="label_no_files">No files found</string>
 </resources>

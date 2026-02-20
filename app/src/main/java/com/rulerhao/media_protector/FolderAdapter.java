@@ -56,8 +56,11 @@ public class FolderAdapter extends BaseAdapter {
         }
 
         File folder = folders.get(position);
+        boolean isParent = folder.getName().equals("..");
+        holder.folderIcon.setImageResource(isParent
+                ? android.R.drawable.ic_menu_upload   // up/back arrow
+                : android.R.drawable.ic_menu_view);   // folder
         holder.folderName.setText(folder.getName());
-        holder.folderIcon.setImageResource(android.R.drawable.ic_menu_view);
 
         return convertView;
     }

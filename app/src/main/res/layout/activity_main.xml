@@ -2,67 +2,166 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical">
+    android:orientation="vertical"
+    android:background="@color/background">
 
+    <!-- ===== Toolbar ===== -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="56dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:padding="8dp"
-        android:background="@color/background_grey_dark">
+        android:paddingStart="16dp"
+        android:paddingEnd="4dp"
+        android:background="@color/toolbar_bg">
 
-        <Switch
-            android:id="@+id/modeSwitch"
+        <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="@string/view_mode_encrypted"
-            android:checked="true" />
+            android:text="@string/app_name"
+            android:textColor="@color/white"
+            android:textSize="20sp"
+            android:textStyle="bold" />
 
         <Button
             android:id="@+id/btnSort"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/btn_sort"
-            style="?android:attr/buttonStyleSmall" />
+            android:textColor="@color/toolbar_icon"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:textSize="13sp" />
 
         <Button
             android:id="@+id/btnBrowseFolder"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/btn_browse"
-            style="?android:attr/buttonStyleSmall" />
-
-        <Button
-            android:id="@+id/btnSelectAll"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/btn_select_all"
-            android:visibility="gone"
-            style="?android:attr/buttonStyleSmall" />
+            android:textColor="@color/toolbar_icon"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:textSize="13sp" />
 
     </LinearLayout>
 
-    <Button
-        android:id="@+id/btnEncrypt"
+    <!-- ===== Mode Tabs ===== -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/btn_encrypt_selected"
-        android:background="@color/primary_red"
-        android:textColor="@color/white"
-        android:visibility="gone"
-        android:layout_margin="8dp" />
+        android:orientation="horizontal"
+        android:background="@color/toolbar_bg">
 
-    <GridView
-        android:id="@+id/gridView"
+        <!-- Protected tab -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <Button
+                android:id="@+id/btnModeProtected"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:text="@string/tab_protected"
+                android:textColor="@color/white"
+                android:textSize="13sp"
+                android:background="?android:attr/selectableItemBackgroundBorderless" />
+
+            <View
+                android:id="@+id/indicatorProtected"
+                android:layout_width="match_parent"
+                android:layout_height="3dp"
+                android:background="@color/tab_indicator"
+                android:visibility="visible" />
+
+        </LinearLayout>
+
+        <!-- Original tab -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <Button
+                android:id="@+id/btnModeOriginal"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:text="@string/tab_original"
+                android:textColor="@color/tab_unselected"
+                android:textSize="13sp"
+                android:background="?android:attr/selectableItemBackgroundBorderless" />
+
+            <View
+                android:id="@+id/indicatorOriginal"
+                android:layout_width="match_parent"
+                android:layout_height="3dp"
+                android:background="@color/tab_indicator"
+                android:visibility="invisible" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- ===== Grid area ===== -->
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1"
-        android:numColumns="3"
-        android:horizontalSpacing="4dp"
-        android:verticalSpacing="4dp"
-        android:padding="4dp"
-        android:clipToPadding="false" />
+        android:layout_weight="1">
+
+        <GridView
+            android:id="@+id/gridView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:numColumns="3"
+            android:horizontalSpacing="2dp"
+            android:verticalSpacing="2dp"
+            android:stretchMode="columnWidth" />
+
+        <TextView
+            android:id="@+id/tvEmpty"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="@string/label_no_files"
+            android:textColor="@color/text_secondary"
+            android:textSize="16sp"
+            android:gravity="center"
+            android:visibility="gone" />
+
+    </FrameLayout>
+
+    <!-- ===== Selection bottom bar (hidden when not selecting) ===== -->
+    <LinearLayout
+        android:id="@+id/selectionBar"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:orientation="horizontal"
+        android:background="@color/surface"
+        android:elevation="8dp"
+        android:visibility="gone">
+
+        <Button
+            android:id="@+id/btnSelectAll"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:text="@string/btn_select_all"
+            android:textColor="@color/text_primary"
+            android:textSize="13sp"
+            android:background="?android:attr/selectableItemBackground" />
+
+        <Button
+            android:id="@+id/btnEncrypt"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="2"
+            android:text="@string/btn_encrypt_selected"
+            android:background="@color/action_encrypt"
+            android:textColor="@color/white"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+    </LinearLayout>
 
 </LinearLayout>

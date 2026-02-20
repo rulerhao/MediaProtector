@@ -1,27 +1,68 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:padding="4dp"
     android:background="?android:attr/selectableItemBackground">
 
+    <!-- Thumbnail fills the cell -->
     <ImageView
         android:id="@+id/thumbnail"
         android:layout_width="match_parent"
-        android:layout_height="120dp"
+        android:layout_height="110dp"
         android:scaleType="centerCrop"
-        android:background="#EEEEEE" />
+        android:background="@color/thumb_placeholder" />
 
+    <!-- Filename overlaid at the bottom of the thumbnail -->
     <TextView
         android:id="@+id/filename"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingTop="4dp"
-        android:paddingBottom="4dp"
+        android:layout_gravity="bottom"
+        android:background="#CC000000"
+        android:textColor="@color/white"
+        android:textSize="11sp"
+        android:paddingStart="6dp"
+        android:paddingEnd="6dp"
+        android:paddingTop="3dp"
+        android:paddingBottom="3dp"
         android:singleLine="true"
-        android:ellipsize="end"
-        android:textSize="12sp"
-        android:gravity="center_horizontal" />
+        android:ellipsize="middle" />
 
-</LinearLayout>
+    <!-- Video badge — top-right corner (&#x25B6; = ▶) -->
+    <TextView
+        android:id="@+id/videoBadge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_margin="4dp"
+        android:background="@color/badge_bg"
+        android:text="&#x25B6;"
+        android:textColor="@color/white"
+        android:textSize="10sp"
+        android:paddingStart="5dp"
+        android:paddingEnd="5dp"
+        android:paddingTop="2dp"
+        android:paddingBottom="2dp"
+        android:visibility="gone" />
+
+    <!-- Selection overlay with checkmark (&#x2713; = ✓) -->
+    <FrameLayout
+        android:id="@+id/selectionOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="110dp"
+        android:background="@color/selection_overlay"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|end"
+            android:layout_margin="6dp"
+            android:text="&#x2713;"
+            android:textColor="@color/white"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+    </FrameLayout>
+
+</FrameLayout>

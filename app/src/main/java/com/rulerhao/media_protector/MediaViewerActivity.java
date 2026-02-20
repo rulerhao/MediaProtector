@@ -10,6 +10,7 @@ import android.os.Looper;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
+import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -102,6 +103,12 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
         String originalName = encrypted
                 ? HeaderObfuscator.getOriginalName(mediaFile)
                 : mediaFile.getName();
+
+        // Top bar: close button + filename
+        Button btnBack = findViewById(R.id.btnBack);
+        TextView tvFilename = findViewById(R.id.tvFilename);
+        btnBack.setOnClickListener(v -> finish());
+        tvFilename.setText(originalName);
 
         if (FileConfig.isVideoFile(originalName)) {
             setupVideo();

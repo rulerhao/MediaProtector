@@ -1,4 +1,7 @@
 <resources>
     <style name="Theme.Minimal" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/background</item>
+        <item name="android:statusBarColor">@color/toolbar_bg</item>
+        <item name="android:navigationBarColor">@color/toolbar_bg</item>
     </style>
 </resources>

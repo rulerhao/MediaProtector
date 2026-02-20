@@ -2,14 +2,18 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical">
+    android:orientation="vertical"
+    android:background="@color/background">
 
+    <!-- Toolbar -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="56dp"
         android:orientation="horizontal"
-        android:padding="8dp"
-        android:background="@color/background_grey_dark">
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="8dp"
+        android:background="@color/toolbar_bg">
 
         <TextView
             android:id="@+id/tvCurrentPath"
@@ -17,8 +21,8 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="/"
-            android:textStyle="bold"
-            android:textSize="16sp"
+            android:textColor="@color/toolbar_icon"
+            android:textSize="13sp"
             android:ellipsize="start"
             android:singleLine="true" />
 
@@ -27,23 +31,34 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/btn_select"
-            style="?android:attr/buttonStyleSmall" />
+            android:textColor="@color/tab_indicator"
+            android:textStyle="bold"
+            android:background="?android:attr/selectableItemBackgroundBorderless" />
 
     </LinearLayout>
 
+    <!-- Filter checkbox -->
     <CheckBox
         android:id="@+id/chkShowOnlyNonEmpty"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/chk_show_filtered_folders"
-        android:padding="8dp"
-        android:background="@color/background_grey_light" />
+        android:textColor="@color/text_primary"
+        android:padding="12dp"
+        android:background="@color/surface" />
 
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/divider" />
+
+    <!-- Folder list -->
     <ListView
         android:id="@+id/folderList"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:divider="@color/divider_grey"
-        android:dividerHeight="1dp" />
+        android:divider="@color/divider"
+        android:dividerHeight="1dp"
+        android:background="@color/surface" />
 
 </LinearLayout>

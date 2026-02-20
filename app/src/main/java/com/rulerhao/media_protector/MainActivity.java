@@ -9,11 +9,11 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.Settings;
+import android.view.View;
 import android.widget.Button;
 import android.widget.GridView;
-import android.widget.Switch;
+import android.widget.TextView;
 import android.widget.Toast;
-import android.view.View;
 
 import com.rulerhao.media_protector.data.MediaRepository;
 import com.rulerhao.media_protector.ui.MainContract;
@@ -25,16 +25,29 @@ import java.util.List;
 
 public class MainActivity extends Activity implements MainContract.View {
 
-    private GridView gridView;
+    private GridView  gridView;
     private MediaAdapter adapter;
     private MainContract.Presenter presenter;
-    private Switch modeSwitch;
-    private Button btnSelectAll;
-    private Button btnEncrypt;
+
+    // Mode tabs
+    private boolean showEncrypted     = true;
+    private Button  btnModeProtected;
+    private Button  btnModeOriginal;
+    private View    indicatorProtected;
+    private View    indicatorOriginal;
+
+    // Selection bottom bar
+    private View     selectionBar;
+    private Button   btnSelectAll;
+    private Button   btnEncrypt;
+
+    // Empty state
+    private TextView tvEmpty;
+
     /** True when one or more files are selected; taps open the viewer when false. */
     private boolean selectionActive = false;
 
-    private static final int PERMISSION_REQUEST_CODE    = 100;
+    private static final int PERMISSION_REQUEST_CODE     = 100;
     private static final int FOLDER_BROWSER_REQUEST_CODE = 200;
 
     @Override
@@ -42,10 +55,15 @@ public class MainActivity extends Activity implements MainContract.View {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        gridView     = findViewById(R.id.gridView);
-        modeSwitch   = findViewById(R.id.modeSwitch);
-        btnSelectAll = findViewById(R.id.btnSelectAll);
-        btnEncrypt   = findViewById(R.id.btnEncrypt);
+        gridView           = findViewById(R.id.gridView);
+        btnModeProtected   = findViewById(R.id.btnModeProtected);
+        btnModeOriginal    = findViewById(R.id.btnModeOriginal);
+        indicatorProtected = findViewById(R.id.indicatorProtected);
+        indicatorOriginal  = findViewById(R.id.indicatorOriginal);
+        selectionBar       = findViewById(R.id.selectionBar);
+        btnSelectAll       = findViewById(R.id.btnSelectAll);
+        btnEncrypt         = findViewById(R.id.btnEncrypt);
+        tvEmpty            = findViewById(R.id.tvEmpty);
         Button btnSort        = findViewById(R.id.btnSort);
         Button btnBrowseFolder = findViewById(R.id.btnBrowseFolder);
 
@@ -54,15 +72,17 @@ public class MainActivity extends Activity implements MainContract.View {
 
         presenter = new MainPresenter(this, new MediaRepository());
 
+        // Toolbar actions
         btnSort.setOnClickListener(this::showSortMenu);
         btnBrowseFolder.setOnClickListener(v -> {
             Intent intent = new Intent(this, FolderBrowserActivity.class);
-            intent.putExtra(FolderBrowserActivity.EXTRA_SHOW_ENCRYPTED, modeSwitch.isChecked());
+            intent.putExtra(FolderBrowserActivity.EXTRA_SHOW_ENCRYPTED, showEncrypted);
             startActivityForResult(intent, FOLDER_BROWSER_REQUEST_CODE);
         });
 
-        modeSwitch.setOnCheckedChangeListener((buttonView, isChecked) ->
-                presenter.switchMode(isChecked));
+        // Mode tab clicks
+        btnModeProtected.setOnClickListener(v -> presenter.switchMode(true));
+        btnModeOriginal.setOnClickListener(v -> presenter.switchMode(false));
 
         // Tap: open viewer when idle, toggle selection when in selection mode.
         gridView.setOnItemClickListener((parent, view, position, id) -> {
@@ -93,13 +113,14 @@ public class MainActivity extends Activity implements MainContract.View {
         });
 
         btnEncrypt.setOnClickListener(v -> {
-            if (modeSwitch.isChecked()) {
+            if (showEncrypted) {
                 presenter.decryptSelected();
             } else {
                 presenter.encryptSelected();
             }
         });
 
+        updateModeTabUI();
         presenter.onCreate();
     }
 
@@ -110,7 +131,10 @@ public class MainActivity extends Activity implements MainContract.View {
     @Override
     public void showFiles(List<File> files) {
         adapter.setFiles(files);
-        Toast.makeText(this, getString(R.string.toast_found_files, files.size()), Toast.LENGTH_SHORT).show();
+        tvEmpty.setVisibility(files.isEmpty() ? View.VISIBLE : View.GONE);
+        if (!files.isEmpty()) {
+            Toast.makeText(this, getString(R.string.toast_found_files, files.size()), Toast.LENGTH_SHORT).show();
+        }
     }
 
     @Override
@@ -166,17 +190,13 @@ public class MainActivity extends Activity implements MainContract.View {
     @Override
     public void updateSelectionMode(boolean enabled, int count) {
         selectionActive = enabled;
-        btnSelectAll.setVisibility(View.VISIBLE);
-        btnEncrypt.setVisibility(enabled ? View.VISIBLE : View.GONE);
-        btnEncrypt.setEnabled(true); // re-enable if returning from an operation
-
+        selectionBar.setVisibility(enabled ? View.VISIBLE : View.GONE);
         btnSelectAll.setText(enabled && count > 0 ? R.string.btn_deselect_all : R.string.btn_select_all);
-
-        btnEncrypt.setText(modeSwitch.isChecked()
+        btnEncrypt.setEnabled(true);
+        btnEncrypt.setText(showEncrypted
                 ? getString(R.string.btn_decrypt, count)
                 : getString(R.string.btn_encrypt, count));
 
-        // Sync adapter selection state through the presenter cast-free contract
         if (presenter instanceof MainPresenter) {
             adapter.updateSelection(((MainPresenter) presenter).getSelectedFiles());
         }
@@ -184,13 +204,11 @@ public class MainActivity extends Activity implements MainContract.View {
 
     @Override
     public void updateMode(boolean isEncryptedMode) {
+        showEncrypted = isEncryptedMode;
         selectionActive = false;
         adapter.setShowEncrypted(isEncryptedMode);
-        modeSwitch.setChecked(isEncryptedMode);
-        modeSwitch.setText(isEncryptedMode ? R.string.view_mode_encrypted : R.string.view_mode_unencrypted);
-
-        btnSelectAll.setVisibility(View.VISIBLE);
-        btnEncrypt.setVisibility(View.GONE);
+        selectionBar.setVisibility(View.GONE);
+        updateModeTabUI();
     }
 
     // -------------------------------------------------------------------------
@@ -235,7 +253,7 @@ public class MainActivity extends Activity implements MainContract.View {
 
     @Override
     protected void onDestroy() {
-        adapter.destroy(); // shut down ThumbnailLoader threads before presenter
+        adapter.destroy();
         presenter.onDestroy();
         super.onDestroy();
     }
@@ -247,8 +265,21 @@ public class MainActivity extends Activity implements MainContract.View {
     private void openViewer(File file) {
         Intent intent = new Intent(this, MediaViewerActivity.class);
         intent.putExtra(MediaViewerActivity.EXTRA_FILE_PATH, file.getAbsolutePath());
-        intent.putExtra(MediaViewerActivity.EXTRA_ENCRYPTED, modeSwitch.isChecked());
+        intent.putExtra(MediaViewerActivity.EXTRA_ENCRYPTED, showEncrypted);
         startActivity(intent);
+    }
+
+    // -------------------------------------------------------------------------
+    // Mode tab UI
+    // -------------------------------------------------------------------------
+
+    private void updateModeTabUI() {
+        int active   = getColor(R.color.white);
+        int inactive = getColor(R.color.tab_unselected);
+        btnModeProtected.setTextColor(showEncrypted ? active : inactive);
+        btnModeOriginal.setTextColor(showEncrypted ? inactive : active);
+        indicatorProtected.setVisibility(showEncrypted ? View.VISIBLE : View.INVISIBLE);
+        indicatorOriginal.setVisibility(showEncrypted ? View.INVISIBLE : View.VISIBLE);
     }
 
     // -------------------------------------------------------------------------

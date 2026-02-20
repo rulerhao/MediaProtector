@@ -9,6 +9,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import com.rulerhao.media_protector.crypto.HeaderObfuscator;
+import com.rulerhao.media_protector.data.FileConfig;
 import com.rulerhao.media_protector.util.ThumbnailLoader;
 
 import java.io.File;
@@ -62,24 +63,31 @@ public class MediaAdapter extends BaseAdapter {
         if (convertView == null) {
             convertView = inflater.inflate(R.layout.item_media, parent, false);
             holder = new ViewHolder();
-            holder.thumbnail = convertView.findViewById(R.id.thumbnail);
-            holder.filename = convertView.findViewById(R.id.filename);
+            holder.thumbnail        = convertView.findViewById(R.id.thumbnail);
+            holder.filename         = convertView.findViewById(R.id.filename);
+            holder.videoBadge       = convertView.findViewById(R.id.videoBadge);
+            holder.selectionOverlay = convertView.findViewById(R.id.selectionOverlay);
             convertView.setTag(holder);
         } else {
             holder = (ViewHolder) convertView.getTag();
         }
 
         File file = files.get(position);
-        holder.filename.setText(
-                showEncrypted ? HeaderObfuscator.getOriginalName(file) : file.getName());
+        String originalName = showEncrypted
+                ? HeaderObfuscator.getOriginalName(file)
+                : file.getName();
 
-        // Selection visuals
+        holder.filename.setText(originalName);
+
+        // Show video badge for video files
+        holder.videoBadge.setVisibility(
+                FileConfig.isVideoFile(originalName) ? View.VISIBLE : View.GONE);
+
+        // Show selection overlay instead of alpha-dimming
         boolean selected = selectedFiles.contains(file);
-        holder.thumbnail.setAlpha(selected ? 0.5f : 1.0f);
-        holder.filename.setTextColor(convertView.getContext().getColor(
-                selected ? R.color.selection_red : R.color.black));
+        holder.thumbnail.setAlpha(1.0f);
+        holder.selectionOverlay.setVisibility(selected ? View.VISIBLE : View.GONE);
 
-        // Async thumbnail via ThumbnailLoader (handles caching + stale-view check internally)
         thumbnailLoader.loadThumbnail(file, showEncrypted, holder.thumbnail);
 
         return convertView;
@@ -88,5 +96,7 @@ public class MediaAdapter extends BaseAdapter {
     private static class ViewHolder {
         ImageView thumbnail;
         TextView  filename;
+        TextView  videoBadge;
+        View      selectionOverlay;
     }
 }

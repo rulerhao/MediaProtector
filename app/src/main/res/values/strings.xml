@@ -46,4 +46,8 @@
 
     <!-- Empty state -->
     <string name="label_no_files">No files found</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_dark_mode">Dark mode</string>
 </resources>

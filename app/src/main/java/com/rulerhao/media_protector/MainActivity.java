@@ -49,12 +49,16 @@ public class MainActivity extends Activity implements MainContract.View {
     /** True when one or more files are selected; taps open the viewer when false. */
     private boolean selectionActive = false;
 
+    /** Theme that was active when this activity was created; used in onResume to detect changes. */
+    private boolean appliedDark;
+
     private static final int PERMISSION_REQUEST_CODE     = 100;
     private static final int FOLDER_BROWSER_REQUEST_CODE = 200;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        appliedDark = ThemeHelper.isDarkMode(this);
         ThemeHelper.applyTheme(this);
         setContentView(R.layout.activity_main);
 
@@ -69,7 +73,7 @@ public class MainActivity extends Activity implements MainContract.View {
         tvEmpty            = findViewById(R.id.tvEmpty);
         Button btnSort        = findViewById(R.id.btnSort);
         Button btnBrowseFolder = findViewById(R.id.btnBrowseFolder);
-        Button btnThemeToggle  = findViewById(R.id.btnThemeToggle);
+        Button btnSettings    = findViewById(R.id.btnSettings);
 
         adapter = new MediaAdapter(this);
         gridView.setAdapter(adapter);
@@ -77,11 +81,8 @@ public class MainActivity extends Activity implements MainContract.View {
         presenter = new MainPresenter(this, new MediaRepository());
 
         // Toolbar actions
-        btnThemeToggle.setText(ThemeHelper.isDarkMode(this) ? "\u2600" : "\u263E");
-        btnThemeToggle.setOnClickListener(v -> {
-            ThemeHelper.toggleTheme(this);
-            recreate();
-        });
+        btnSettings.setOnClickListener(v ->
+                startActivity(new Intent(this, SettingsActivity.class)));
         btnSort.setOnClickListener(this::showSortMenu);
         btnBrowseFolder.setOnClickListener(v -> {
             Intent intent = new Intent(this, FolderBrowserActivity.class);
@@ -259,6 +260,15 @@ public class MainActivity extends Activity implements MainContract.View {
     // -------------------------------------------------------------------------
     // Lifecycle
     // -------------------------------------------------------------------------
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Recreate if theme was changed in SettingsActivity while we were paused.
+        if (ThemeHelper.isDarkMode(this) != appliedDark) {
+            recreate();
+        }
+    }
 
     @Override
     protected void onDestroy() {

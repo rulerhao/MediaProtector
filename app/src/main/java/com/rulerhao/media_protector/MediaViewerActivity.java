@@ -311,12 +311,20 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
     // ─────────────────────────────────────────────────────────────────────
 
     private void setupVideo() {
-        surfaceView.setVisibility(View.VISIBLE);
         videoControls.setVisibility(View.VISIBLE);
         progressBar.setVisibility(View.VISIBLE);
-        // If the surface is already alive (video → video navigation), start immediately.
-        // Otherwise surfaceCreated() will fire and call initPlayer().
-        if (surfaceReady) initPlayer();
+        if (surfaceView.getVisibility() == View.VISIBLE) {
+            // Video → video: the old surface is still alive. Hide it so the
+            // system destroys the underlying Surface; surfaceDestroyed() will
+            // then post setVisibility(VISIBLE) to recreate it, firing
+            // surfaceCreated() → initPlayer() on a clean slate.
+            surfaceView.setVisibility(View.GONE);
+            surfaceReady = false;
+        } else {
+            // Image → video (or first load): surface is already gone; just
+            // show it. surfaceCreated() will fire and call initPlayer().
+            surfaceView.setVisibility(View.VISIBLE);
+        }
     }
 
     private void initPlayer() {
@@ -390,6 +398,10 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
 
     private void releasePlayer() {
         if (mediaPlayer != null) {
+            // Explicitly disconnect from the surface BEFORE stop/release.
+            // Without this the underlying codec stays connected to the BufferQueue
+            // and the next player's setDisplay() throws "already connected".
+            try { mediaPlayer.setDisplay(null); } catch (IllegalStateException ignored) {}
             try { mediaPlayer.stop(); } catch (IllegalStateException ignored) {}
             mediaPlayer.release();
             mediaPlayer = null;
@@ -419,6 +431,16 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
     public void surfaceDestroyed(SurfaceHolder holder) {
         surfaceReady = false;
         if (mediaPlayer != null) mediaPlayer.setDisplay(null);
+        // If the surface was torn down to make way for a new video (player already
+        // released by releasePlayer()), recreate it so surfaceCreated() fires and
+        // initPlayer() can connect the new player to a fresh surface.
+        if (isVideoMode && mediaPlayer == null) {
+            mainHandler.post(() -> {
+                if (isVideoMode && mediaPlayer == null) {
+                    surfaceView.setVisibility(View.VISIBLE);
+                }
+            });
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────

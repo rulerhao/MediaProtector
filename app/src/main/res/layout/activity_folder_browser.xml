@@ -13,7 +13,7 @@
         android:gravity="center_vertical"
         android:paddingStart="16dp"
         android:paddingEnd="8dp"
-        android:background="@color/toolbar_bg">
+        android:background="?attr/colorToolbar">
 
         <TextView
             android:id="@+id/tvCurrentPath"
@@ -21,7 +21,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="/"
-            android:textColor="@color/toolbar_icon"
+            android:textColor="?attr/colorToolbarIcon"
             android:textSize="13sp"
             android:ellipsize="start"
             android:singleLine="true" />

@@ -1,10 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Brand / Toolbar (shared across both themes) -->
-    <color name="toolbar_bg">#263238</color>
-    <color name="toolbar_icon">#B0BEC5</color>
-
-    <!-- Mode tabs (shared) -->
+    <!-- Mode tabs (shared across both themes) -->
     <color name="tab_indicator">#26C6DA</color>
     <color name="tab_unselected">#78909C</color>
 
@@ -20,5 +16,4 @@
     <!-- Legacy aliases referenced from Java -->
     <color name="primary_red">#EF5350</color>
     <color name="selection_red">#EF5350</color>
-    <color name="background_grey_dark">#263238</color>
 </resources>

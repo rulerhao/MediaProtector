@@ -2,13 +2,20 @@
 
     <!-- ===== Dark theme (default) ===== -->
     <style name="Theme.Minimal.Dark" parent="android:Theme.Material.NoActionBar">
+        <!-- Window / content -->
         <item name="android:colorBackground">#121212</item>
         <item name="android:windowBackground">#121212</item>
         <item name="android:textColorPrimary">#E8EAED</item>
         <item name="android:textColorSecondary">#9AA0A6</item>
-        <item name="android:statusBarColor">@color/toolbar_bg</item>
+        <!-- Status / nav bars -->
+        <item name="android:statusBarColor">#263238</item>
         <item name="android:navigationBarColor">#121212</item>
-        <!-- Custom attrs -->
+        <item name="android:windowLightStatusBar">false</item>
+        <!-- Toolbar custom attrs -->
+        <item name="colorToolbar">#263238</item>
+        <item name="colorToolbarText">#FFFFFF</item>
+        <item name="colorToolbarIcon">#B0BEC5</item>
+        <!-- Surface custom attrs -->
         <item name="colorSurface">#1E1E1E</item>
         <item name="colorDivider">#2C2C2C</item>
         <item name="colorThumbPlaceholder">#2C2C2C</item>
@@ -16,19 +23,26 @@
 
     <!-- ===== Light theme ===== -->
     <style name="Theme.Minimal.Light" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- Window / content -->
         <item name="android:colorBackground">#ECEFF1</item>
         <item name="android:windowBackground">#ECEFF1</item>
         <item name="android:textColorPrimary">#212121</item>
         <item name="android:textColorSecondary">#607D8B</item>
-        <item name="android:statusBarColor">@color/toolbar_bg</item>
+        <!-- Status / nav bars — white toolbar, so use light status bar icons -->
+        <item name="android:statusBarColor">#FFFFFF</item>
         <item name="android:navigationBarColor">#ECEFF1</item>
-        <!-- Custom attrs -->
+        <item name="android:windowLightStatusBar">true</item>
+        <!-- Toolbar custom attrs -->
+        <item name="colorToolbar">#FFFFFF</item>
+        <item name="colorToolbarText">#212121</item>
+        <item name="colorToolbarIcon">#546E7A</item>
+        <!-- Surface custom attrs -->
         <item name="colorSurface">#FFFFFF</item>
         <item name="colorDivider">#CFD8DC</item>
         <item name="colorThumbPlaceholder">#CFD8DC</item>
     </style>
 
-    <!-- Alias kept for AndroidManifest; activities override via ThemeHelper.applyTheme() -->
+    <!-- Manifest alias; activities override via ThemeHelper.applyTheme() -->
     <style name="Theme.Minimal" parent="Theme.Minimal.Dark" />
 
 </resources>

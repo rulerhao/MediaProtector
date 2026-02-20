@@ -9,6 +9,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.Settings;
+import android.util.TypedValue;
 import android.view.View;
 import android.widget.Button;
 import android.widget.GridView;
@@ -282,7 +283,9 @@ public class MainActivity extends Activity implements MainContract.View {
     // -------------------------------------------------------------------------
 
     private void updateModeTabUI() {
-        int active   = getColor(R.color.white);
+        TypedValue tv = new TypedValue();
+        getTheme().resolveAttribute(R.attr.colorToolbarText, tv, true);
+        int active   = tv.data;
         int inactive = getColor(R.color.tab_unselected);
         btnModeProtected.setTextColor(showEncrypted ? active : inactive);
         btnModeOriginal.setTextColor(showEncrypted ? inactive : active);

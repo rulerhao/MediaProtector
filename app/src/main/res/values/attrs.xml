@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Toolbar / top-bar background -->
+    <attr name="colorToolbar" format="color" />
+    <!-- Primary text on the toolbar (title, labels) -->
+    <attr name="colorToolbarText" format="color" />
+    <!-- Secondary text / icon tint on the toolbar (action buttons, path text) -->
+    <attr name="colorToolbarIcon" format="color" />
+
     <!-- Surface color (cards, bottom bars, list backgrounds) -->
     <attr name="colorSurface" format="color" />
     <!-- Divider / separator lines -->

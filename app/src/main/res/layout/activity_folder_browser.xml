@@ -3,7 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@color/background">
+    android:background="?android:attr/colorBackground">
 
     <!-- Toolbar -->
     <LinearLayout
@@ -43,22 +43,22 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/chk_show_filtered_folders"
-        android:textColor="@color/text_primary"
+        android:textColor="?android:attr/textColorPrimary"
         android:padding="12dp"
-        android:background="@color/surface" />
+        android:background="?attr/colorSurface" />
 
     <View
         android:layout_width="match_parent"
         android:layout_height="1dp"
-        android:background="@color/divider" />
+        android:background="?attr/colorDivider" />
 
     <!-- Folder list -->
     <ListView
         android:id="@+id/folderList"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:divider="@color/divider"
+        android:divider="?attr/colorDivider"
         android:dividerHeight="1dp"
-        android:background="@color/surface" />
+        android:background="?attr/colorSurface" />
 
 </LinearLayout>

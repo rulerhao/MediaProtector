@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Surface color (cards, bottom bars, list backgrounds) -->
+    <attr name="colorSurface" format="color" />
+    <!-- Divider / separator lines -->
+    <attr name="colorDivider" format="color" />
+    <!-- Placeholder background shown before a thumbnail loads -->
+    <attr name="colorThumbPlaceholder" format="color" />
+</resources>

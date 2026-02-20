@@ -1,7 +1,34 @@
 <resources>
-    <style name="Theme.Minimal" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:windowBackground">@color/background</item>
+
+    <!-- ===== Dark theme (default) ===== -->
+    <style name="Theme.Minimal.Dark" parent="android:Theme.Material.NoActionBar">
+        <item name="android:colorBackground">#121212</item>
+        <item name="android:windowBackground">#121212</item>
+        <item name="android:textColorPrimary">#E8EAED</item>
+        <item name="android:textColorSecondary">#9AA0A6</item>
         <item name="android:statusBarColor">@color/toolbar_bg</item>
-        <item name="android:navigationBarColor">@color/toolbar_bg</item>
+        <item name="android:navigationBarColor">#121212</item>
+        <!-- Custom attrs -->
+        <item name="colorSurface">#1E1E1E</item>
+        <item name="colorDivider">#2C2C2C</item>
+        <item name="colorThumbPlaceholder">#2C2C2C</item>
     </style>
+
+    <!-- ===== Light theme ===== -->
+    <style name="Theme.Minimal.Light" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:colorBackground">#ECEFF1</item>
+        <item name="android:windowBackground">#ECEFF1</item>
+        <item name="android:textColorPrimary">#212121</item>
+        <item name="android:textColorSecondary">#607D8B</item>
+        <item name="android:statusBarColor">@color/toolbar_bg</item>
+        <item name="android:navigationBarColor">#ECEFF1</item>
+        <!-- Custom attrs -->
+        <item name="colorSurface">#FFFFFF</item>
+        <item name="colorDivider">#CFD8DC</item>
+        <item name="colorThumbPlaceholder">#CFD8DC</item>
+    </style>
+
+    <!-- Alias kept for AndroidManifest; activities override via ThemeHelper.applyTheme() -->
+    <style name="Theme.Minimal" parent="Theme.Minimal.Dark" />
+
 </resources>

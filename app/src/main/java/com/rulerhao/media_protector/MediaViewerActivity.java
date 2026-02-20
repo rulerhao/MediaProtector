@@ -21,6 +21,7 @@ import android.widget.TextView;
 import com.rulerhao.media_protector.crypto.HeaderObfuscator;
 import com.rulerhao.media_protector.data.FileConfig;
 import com.rulerhao.media_protector.util.EncryptedMediaDataSource;
+import com.rulerhao.media_protector.util.ThemeHelper;
 
 import java.io.File;
 import java.io.IOException;
@@ -78,6 +79,7 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        ThemeHelper.applyTheme(this);
         setContentView(R.layout.activity_media_viewer);
 
         imageView     = findViewById(R.id.imageView);

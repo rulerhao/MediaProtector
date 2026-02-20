@@ -13,6 +13,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.rulerhao.media_protector.data.MediaRepository;
+import com.rulerhao.media_protector.util.ThemeHelper;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -39,6 +40,7 @@ public class FolderBrowserActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        ThemeHelper.applyTheme(this);
         setContentView(R.layout.activity_folder_browser);
 
         tvCurrentPath  = findViewById(R.id.tvCurrentPath);

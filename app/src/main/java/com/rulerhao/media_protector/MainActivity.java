@@ -19,6 +19,7 @@ import com.rulerhao.media_protector.data.MediaRepository;
 import com.rulerhao.media_protector.ui.MainContract;
 import com.rulerhao.media_protector.ui.MainPresenter;
 import com.rulerhao.media_protector.ui.SortOption;
+import com.rulerhao.media_protector.util.ThemeHelper;
 
 import java.io.File;
 import java.util.List;
@@ -53,6 +54,7 @@ public class MainActivity extends Activity implements MainContract.View {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        ThemeHelper.applyTheme(this);
         setContentView(R.layout.activity_main);
 
         gridView           = findViewById(R.id.gridView);
@@ -66,6 +68,7 @@ public class MainActivity extends Activity implements MainContract.View {
         tvEmpty            = findViewById(R.id.tvEmpty);
         Button btnSort        = findViewById(R.id.btnSort);
         Button btnBrowseFolder = findViewById(R.id.btnBrowseFolder);
+        Button btnThemeToggle  = findViewById(R.id.btnThemeToggle);
 
         adapter = new MediaAdapter(this);
         gridView.setAdapter(adapter);
@@ -73,6 +76,11 @@ public class MainActivity extends Activity implements MainContract.View {
         presenter = new MainPresenter(this, new MediaRepository());
 
         // Toolbar actions
+        btnThemeToggle.setText(ThemeHelper.isDarkMode(this) ? "\u2600" : "\u263E");
+        btnThemeToggle.setOnClickListener(v -> {
+            ThemeHelper.toggleTheme(this);
+            recreate();
+        });
         btnSort.setOnClickListener(this::showSortMenu);
         btnBrowseFolder.setOnClickListener(v -> {
             Intent intent = new Intent(this, FolderBrowserActivity.class);

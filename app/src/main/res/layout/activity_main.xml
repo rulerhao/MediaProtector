@@ -3,7 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@color/background">
+    android:background="?android:attr/colorBackground">
 
     <!-- ===== Toolbar ===== -->
     <LinearLayout
@@ -23,6 +23,15 @@
             android:textColor="@color/white"
             android:textSize="20sp"
             android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/btnThemeToggle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="&#x2600;"
+            android:textColor="@color/toolbar_icon"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:textSize="16sp" />
 
         <Button
             android:id="@+id/btnSort"
@@ -124,7 +133,7 @@
             android:layout_height="wrap_content"
             android:layout_gravity="center"
             android:text="@string/label_no_files"
-            android:textColor="@color/text_secondary"
+            android:textColor="?android:attr/textColorSecondary"
             android:textSize="16sp"
             android:gravity="center"
             android:visibility="gone" />
@@ -137,7 +146,7 @@
         android:layout_width="match_parent"
         android:layout_height="56dp"
         android:orientation="horizontal"
-        android:background="@color/surface"
+        android:background="?attr/colorSurface"
         android:elevation="8dp"
         android:visibility="gone">
 
@@ -147,7 +156,7 @@
             android:layout_height="match_parent"
             android:layout_weight="1"
             android:text="@string/btn_select_all"
-            android:textColor="@color/text_primary"
+            android:textColor="?android:attr/textColorPrimary"
             android:textSize="13sp"
             android:background="?android:attr/selectableItemBackground" />
 

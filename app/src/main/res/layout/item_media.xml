@@ -10,7 +10,7 @@
         android:layout_width="match_parent"
         android:layout_height="110dp"
         android:scaleType="centerCrop"
-        android:background="@color/thumb_placeholder" />
+        android:background="?attr/colorThumbPlaceholder" />
 
     <!-- Filename overlaid at the bottom of the thumbnail -->
     <TextView

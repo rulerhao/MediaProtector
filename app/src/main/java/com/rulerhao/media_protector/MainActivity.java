@@ -282,8 +282,17 @@ public class MainActivity extends Activity implements MainContract.View {
     // -------------------------------------------------------------------------
 
     private void openViewer(File file) {
+        int count = adapter.getCount();
+        String[] paths = new String[count];
+        int startIndex = 0;
+        for (int i = 0; i < count; i++) {
+            File f = (File) adapter.getItem(i);
+            paths[i] = f.getAbsolutePath();
+            if (f.getAbsolutePath().equals(file.getAbsolutePath())) startIndex = i;
+        }
         Intent intent = new Intent(this, MediaViewerActivity.class);
-        intent.putExtra(MediaViewerActivity.EXTRA_FILE_PATH, file.getAbsolutePath());
+        intent.putExtra(MediaViewerActivity.EXTRA_FILE_LIST, paths);
+        intent.putExtra(MediaViewerActivity.EXTRA_FILE_INDEX, startIndex);
         intent.putExtra(MediaViewerActivity.EXTRA_ENCRYPTED, showEncrypted);
         startActivity(intent);
     }

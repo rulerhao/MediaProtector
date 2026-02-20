@@ -8,6 +8,8 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.view.GestureDetector;
+import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
@@ -32,25 +34,33 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Full-screen viewer for both images and videos, supporting encrypted (.mprot) files.
+ * Full-screen viewer for images and videos with swipe-to-navigate and
+ * auto-hiding overlays (top bar + video controls hide after 3 s of inactivity;
+ * any touch reveals them again).
  *
- * <p>Pass {@link #EXTRA_FILE_PATH} (the absolute path) and {@link #EXTRA_ENCRYPTED}
- * (true for .mprot files) via the starting Intent.
- *
- * <ul>
- *   <li>Images are decoded on a background thread via {@link HeaderObfuscator#getDecryptedStream}
- *       (encrypted) or {@link BitmapFactory#decodeFile} (plain).</li>
- *   <li>Videos use {@link MediaPlayer} on a {@link SurfaceView}; encrypted files are fed via
- *       {@link EncryptedMediaDataSource} (no temp file written to disk).</li>
- * </ul>
+ * <p>Pass {@link #EXTRA_FILE_LIST} (String[]) and {@link #EXTRA_FILE_INDEX} (int)
+ * to enable left/right swipe navigation.  Legacy single-file mode still works
+ * via {@link #EXTRA_FILE_PATH}.
  */
 public class MediaViewerActivity extends Activity implements SurfaceHolder.Callback {
 
-    public static final String EXTRA_FILE_PATH = "file_path";
-    public static final String EXTRA_ENCRYPTED = "encrypted";
+    /** String[] — all file paths in the current view (enables swipe navigation). */
+    public static final String EXTRA_FILE_LIST  = "file_list";
+    /** int — index within EXTRA_FILE_LIST for the initially displayed file. */
+    public static final String EXTRA_FILE_INDEX = "file_index";
+    /** String — legacy single-file path; used when EXTRA_FILE_LIST is absent. */
+    public static final String EXTRA_FILE_PATH  = "file_path";
+    /** boolean — whether the files are AES-encrypted (.mprot). */
+    public static final String EXTRA_ENCRYPTED  = "encrypted";
 
-    private static final int SEEK_UPDATE_MS = 500;
+    private static final int  SEEK_UPDATE_MS          = 500;
+    private static final long OVERLAY_HIDE_DELAY_MS   = 3_000;
+    private static final int  SWIPE_MIN_DISTANCE      = 80;   // px
+    private static final int  SWIPE_MIN_VELOCITY      = 100;  // px/s
 
+    // ── Views ─────────────────────────────────────────────────────────────
+    private View         viewerTopBar;
+    private TextView     tvFilename;
     private ImageView    imageView;
     private SurfaceView  surfaceView;
     private LinearLayout videoControls;
@@ -60,22 +70,33 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
     private ProgressBar  progressBar;
     private TextView     tvError;
 
+    // ── Playback ──────────────────────────────────────────────────────────
     private MediaPlayer              mediaPlayer;
     private EncryptedMediaDataSource mediaDataSource;
-    private boolean surfaceReady   = false;
-    private boolean playerPrepared = false;
+    private boolean surfaceReady    = false;
+    private boolean playerPrepared  = false;
     private boolean startOnPrepared = false;
+    private boolean isVideoMode     = false;
 
-    private final Handler         mainHandler = new Handler(Looper.getMainLooper());
-    private final ExecutorService ioExecutor  = Executors.newSingleThreadExecutor();
-    private final Runnable        seekTick    = this::tickSeekBar;
+    // ── Navigation ────────────────────────────────────────────────────────
+    private String[] fileList;
+    private int      currentIndex;
+    private boolean  encrypted;
+    private File     mediaFile;
 
-    private File    mediaFile;
-    private boolean encrypted;
+    // ── Overlay auto-hide ─────────────────────────────────────────────────
+    private boolean overlaysVisible = true;
+    private final Handler  mainHandler  = new Handler(Looper.getMainLooper());
+    private final Runnable seekTick     = this::tickSeekBar;
+    private final Runnable hideRunnable = this::hideOverlays;
 
-    // -------------------------------------------------------------------------
+    // ── Misc ──────────────────────────────────────────────────────────────
+    private GestureDetector       gestureDetector;
+    private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor();
+
+    // ─────────────────────────────────────────────────────────────────────
     // Lifecycle
-    // -------------------------------------------------------------------------
+    // ─────────────────────────────────────────────────────────────────────
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -83,6 +104,8 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
         ThemeHelper.applyTheme(this);
         setContentView(R.layout.activity_media_viewer);
 
+        viewerTopBar  = findViewById(R.id.viewerTopBar);
+        tvFilename    = findViewById(R.id.tvFilename);
         imageView     = findViewById(R.id.imageView);
         surfaceView   = findViewById(R.id.surfaceView);
         videoControls = findViewById(R.id.videoControls);
@@ -92,34 +115,78 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
         progressBar   = findViewById(R.id.progressBar);
         tvError       = findViewById(R.id.tvError);
 
-        String path = getIntent().getStringExtra(EXTRA_FILE_PATH);
-        encrypted   = getIntent().getBooleanExtra(EXTRA_ENCRYPTED, false);
+        // Register surface callback once for the entire activity lifetime.
+        surfaceView.getHolder().addCallback(this);
 
-        if (path == null) {
-            showError(getString(R.string.error_generic));
-            return;
-        }
-
-        mediaFile = new File(path);
-
-        // Determine original file type (strip .mprot extension if needed)
-        String originalName = encrypted
-                ? HeaderObfuscator.getOriginalName(mediaFile)
-                : mediaFile.getName();
-
-        // Top bar: close button + filename
+        // Close button
         Button btnBack = findViewById(R.id.btnBack);
-        TextView tvFilename = findViewById(R.id.tvFilename);
         btnBack.setOnClickListener(v -> finish());
-        tvFilename.setText(originalName);
 
-        if (FileConfig.isVideoFile(originalName)) {
-            setupVideo();
+        // Video control listeners are set once; safe regardless of how many videos we navigate.
+        btnPlayPause.setOnClickListener(v -> togglePlayPause());
+        seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
+                if (fromUser && playerPrepared && mediaPlayer != null) {
+                    mediaPlayer.seekTo(progress);
+                }
+            }
+            @Override public void onStartTrackingTouch(SeekBar bar) { stopSeekTicks(); }
+            @Override public void onStopTrackingTouch(SeekBar bar)  { startSeekTicks(); }
+        });
+
+        // Read intent extras — support both multi-file and legacy single-file mode.
+        encrypted = getIntent().getBooleanExtra(EXTRA_ENCRYPTED, false);
+        String[] list = getIntent().getStringArrayExtra(EXTRA_FILE_LIST);
+        if (list != null && list.length > 0) {
+            fileList     = list;
+            currentIndex = getIntent().getIntExtra(EXTRA_FILE_INDEX, 0);
+            currentIndex = Math.max(0, Math.min(currentIndex, fileList.length - 1));
         } else {
-            loadImage();
+            String path = getIntent().getStringExtra(EXTRA_FILE_PATH);
+            if (path == null) { showError(getString(R.string.error_generic)); return; }
+            fileList     = new String[]{ path };
+            currentIndex = 0;
         }
 
+        // Gesture: any tap → show overlays; horizontal fling → navigate prev/next.
+        gestureDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
+            @Override
+            public boolean onDown(MotionEvent e) {
+                showOverlays();
+                return false; // don't consume — let child views keep handling clicks
+            }
+
+            @Override
+            public boolean onFling(MotionEvent e1, MotionEvent e2, float vX, float vY) {
+                if (e1 == null) return false;
+                // Don't intercept flings that start inside visible video controls.
+                if (isVideoMode && videoControls.getVisibility() == View.VISIBLE
+                        && e1.getY() >= videoControls.getTop()) {
+                    return false;
+                }
+                float dX = e2.getX() - e1.getX();
+                float dY = e2.getY() - e1.getY();
+                if (Math.abs(dX) > Math.abs(dY)
+                        && Math.abs(dX) > SWIPE_MIN_DISTANCE
+                        && Math.abs(vX) > SWIPE_MIN_VELOCITY) {
+                    if (dX > 0) navigatePrev();
+                    else        navigateNext();
+                    return true;
+                }
+                return false;
+            }
+        });
+
+        loadCurrentMedia();
         hideSystemBars();
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent ev) {
+        // Feed every touch to the gesture detector before letting child views handle it.
+        gestureDetector.onTouchEvent(ev);
+        return super.dispatchTouchEvent(ev);
     }
 
     @Override
@@ -140,87 +207,128 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
 
     @Override
     protected void onDestroy() {
+        mainHandler.removeCallbacksAndMessages(null);
         stopSeekTicks();
         releasePlayer();
         ioExecutor.shutdownNow();
         super.onDestroy();
     }
 
-    // -------------------------------------------------------------------------
-    // Image
-    // -------------------------------------------------------------------------
+    // ─────────────────────────────────────────────────────────────────────
+    // Navigation
+    // ─────────────────────────────────────────────────────────────────────
+
+    private void navigatePrev() {
+        if (fileList != null && currentIndex > 0) navigateTo(currentIndex - 1);
+    }
+
+    private void navigateNext() {
+        if (fileList != null && currentIndex < fileList.length - 1) navigateTo(currentIndex + 1);
+    }
+
+    private void navigateTo(int index) {
+        currentIndex = index;
+        loadCurrentMedia();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Load media (called on every navigation)
+    // ─────────────────────────────────────────────────────────────────────
+
+    private void loadCurrentMedia() {
+        stopSeekTicks();
+        releasePlayer();
+        mainHandler.removeCallbacks(hideRunnable);
+
+        // Reset shared UI state.
+        playerPrepared  = false;
+        startOnPrepared = false;
+        progressBar.setVisibility(View.GONE);
+        tvError.setVisibility(View.GONE);
+        seekBar.setProgress(0);
+        tvDuration.setText("0:00 / 0:00");
+
+        // Resolve file and detect type.
+        mediaFile = new File(fileList[currentIndex]);
+        String originalName = encrypted
+                ? HeaderObfuscator.getOriginalName(mediaFile)
+                : mediaFile.getName();
+        tvFilename.setText(originalName);
+
+        isVideoMode = FileConfig.isVideoFile(originalName);
+        if (isVideoMode) {
+            imageView.setImageBitmap(null);
+            imageView.setVisibility(View.GONE);
+            setupVideo();
+        } else {
+            // Navigating away from video: tear down the surface.
+            surfaceView.setVisibility(View.GONE);
+            videoControls.setVisibility(View.GONE);
+            surfaceReady = false;
+            loadImage();
+        }
+
+        showOverlays();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Image loading
+    // ─────────────────────────────────────────────────────────────────────
 
     private void loadImage() {
         imageView.setVisibility(View.VISIBLE);
         progressBar.setVisibility(View.VISIBLE);
-
+        // Capture the target so the callback can detect a stale load after navigation.
+        final File target = mediaFile;
         ioExecutor.execute(() -> {
-            Bitmap bmp = decodeImage();
+            Bitmap bmp = decodeImage(target);
             mainHandler.post(() -> {
+                if (!target.equals(mediaFile)) return; // user navigated away; discard
                 progressBar.setVisibility(View.GONE);
-                if (bmp != null) {
-                    imageView.setImageBitmap(bmp);
-                } else {
-                    showError(getString(R.string.error_load_media));
-                }
+                if (bmp != null) imageView.setImageBitmap(bmp);
+                else             showError(getString(R.string.error_load_media));
             });
         });
     }
 
-    private Bitmap decodeImage() {
+    private Bitmap decodeImage(File file) {
         try {
             if (encrypted) {
                 HeaderObfuscator obfuscator = new HeaderObfuscator();
-                try (InputStream is = obfuscator.getDecryptedStream(mediaFile)) {
+                try (InputStream is = obfuscator.getDecryptedStream(file)) {
                     return BitmapFactory.decodeStream(is);
                 }
             } else {
-                return BitmapFactory.decodeFile(mediaFile.getAbsolutePath());
+                return BitmapFactory.decodeFile(file.getAbsolutePath());
             }
         } catch (IOException e) {
             return null;
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Video
-    // -------------------------------------------------------------------------
+    // ─────────────────────────────────────────────────────────────────────
+    // Video playback
+    // ─────────────────────────────────────────────────────────────────────
 
     private void setupVideo() {
         surfaceView.setVisibility(View.VISIBLE);
         videoControls.setVisibility(View.VISIBLE);
         progressBar.setVisibility(View.VISIBLE);
-
-        surfaceView.getHolder().addCallback(this);
-
-        btnPlayPause.setOnClickListener(v -> togglePlayPause());
-
-        seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override
-            public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
-                if (fromUser && mediaPlayer != null && playerPrepared) {
-                    mediaPlayer.seekTo(progress);
-                }
-            }
-            @Override public void onStartTrackingTouch(SeekBar bar) { stopSeekTicks(); }
-            @Override public void onStopTrackingTouch(SeekBar bar)  { startSeekTicks(); }
-        });
+        // If the surface is already alive (video → video navigation), start immediately.
+        // Otherwise surfaceCreated() will fire and call initPlayer().
+        if (surfaceReady) initPlayer();
     }
 
     private void initPlayer() {
         try {
             mediaPlayer = new MediaPlayer();
-
             if (encrypted) {
                 mediaDataSource = new EncryptedMediaDataSource(mediaFile);
                 mediaPlayer.setDataSource(mediaDataSource);
             } else {
                 mediaPlayer.setDataSource(mediaFile.getAbsolutePath());
             }
-
-            if (surfaceReady) {
-                mediaPlayer.setDisplay(surfaceView.getHolder());
-            }
+            mediaPlayer.setDisplay(surfaceView.getHolder());
 
             mediaPlayer.setOnPreparedListener(mp -> {
                 playerPrepared = true;
@@ -267,13 +375,8 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
         }
     }
 
-    private void startSeekTicks() {
-        mainHandler.postDelayed(seekTick, SEEK_UPDATE_MS);
-    }
-
-    private void stopSeekTicks() {
-        mainHandler.removeCallbacks(seekTick);
-    }
+    private void startSeekTicks() { mainHandler.postDelayed(seekTick, SEEK_UPDATE_MS); }
+    private void stopSeekTicks()  { mainHandler.removeCallbacks(seekTick); }
 
     private void tickSeekBar() {
         if (mediaPlayer == null || !playerPrepared) return;
@@ -282,9 +385,7 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
         seekBar.setProgress(pos);
         tvDuration.setText(String.format(Locale.getDefault(),
                 "%s / %s", formatMs(pos), formatMs(dur)));
-        if (mediaPlayer.isPlaying()) {
-            mainHandler.postDelayed(seekTick, SEEK_UPDATE_MS);
-        }
+        if (mediaPlayer.isPlaying()) mainHandler.postDelayed(seekTick, SEEK_UPDATE_MS);
     }
 
     private void releasePlayer() {
@@ -299,17 +400,16 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
         }
     }
 
-    // -------------------------------------------------------------------------
+    // ─────────────────────────────────────────────────────────────────────
     // SurfaceHolder.Callback
-    // -------------------------------------------------------------------------
+    // ─────────────────────────────────────────────────────────────────────
 
     @Override
     public void surfaceCreated(SurfaceHolder holder) {
         surfaceReady = true;
-        if (mediaPlayer == null) {
-            initPlayer();
-        } else {
-            mediaPlayer.setDisplay(holder);
+        if (isVideoMode) {
+            if (mediaPlayer == null) initPlayer();
+            else                     mediaPlayer.setDisplay(holder);
         }
     }
 
@@ -321,9 +421,44 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
         if (mediaPlayer != null) mediaPlayer.setDisplay(null);
     }
 
-    // -------------------------------------------------------------------------
-    // Helpers
-    // -------------------------------------------------------------------------
+    // ─────────────────────────────────────────────────────────────────────
+    // Overlay auto-hide
+    // ─────────────────────────────────────────────────────────────────────
+
+    private void showOverlays() {
+        mainHandler.removeCallbacks(hideRunnable);
+        overlaysVisible = true;
+
+        viewerTopBar.animate().cancel();
+        viewerTopBar.setAlpha(1f);
+        viewerTopBar.setVisibility(View.VISIBLE);
+
+        if (isVideoMode) {
+            videoControls.animate().cancel();
+            videoControls.setAlpha(1f);
+            videoControls.setVisibility(View.VISIBLE);
+        }
+
+        mainHandler.postDelayed(hideRunnable, OVERLAY_HIDE_DELAY_MS);
+    }
+
+    private void hideOverlays() {
+        overlaysVisible = false;
+        viewerTopBar.animate()
+                .alpha(0f).setDuration(300)
+                .withEndAction(() -> { if (!overlaysVisible) viewerTopBar.setVisibility(View.GONE); })
+                .start();
+        if (isVideoMode && videoControls.getVisibility() == View.VISIBLE) {
+            videoControls.animate()
+                    .alpha(0f).setDuration(300)
+                    .withEndAction(() -> { if (!overlaysVisible) videoControls.setVisibility(View.GONE); })
+                    .start();
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Immersive system bars
+    // ─────────────────────────────────────────────────────────────────────
 
     private void hideSystemBars() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -344,6 +479,10 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
                     | View.SYSTEM_UI_FLAG_FULLSCREEN);
         }
     }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Helpers
+    // ─────────────────────────────────────────────────────────────────────
 
     private void showError(String msg) {
         tvError.setText(msg);

@@ -363,17 +363,49 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
 
     private Bitmap decodeImage(File file) {
         try {
+            android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
+            int maxW = dm.widthPixels;
+            int maxH = dm.heightPixels;
+
+            // Pass 1: read image dimensions without allocating any pixel memory.
+            BitmapFactory.Options opts = new BitmapFactory.Options();
+            opts.inJustDecodeBounds = true;
             if (encrypted) {
                 HeaderObfuscator obfuscator = new HeaderObfuscator();
                 try (InputStream is = obfuscator.getDecryptedStream(file)) {
-                    return BitmapFactory.decodeStream(is);
+                    BitmapFactory.decodeStream(is, null, opts);
                 }
             } else {
-                return BitmapFactory.decodeFile(file.getAbsolutePath());
+                BitmapFactory.decodeFile(file.getAbsolutePath(), opts);
+            }
+
+            // Pass 2: decode with an inSampleSize that keeps the bitmap within
+            // screen dimensions so it never exceeds the Canvas texture limit.
+            opts.inSampleSize     = calculateInSampleSize(opts.outWidth, opts.outHeight, maxW, maxH);
+            opts.inJustDecodeBounds = false;
+            if (encrypted) {
+                HeaderObfuscator obfuscator = new HeaderObfuscator();
+                try (InputStream is = obfuscator.getDecryptedStream(file)) {
+                    return BitmapFactory.decodeStream(is, null, opts);
+                }
+            } else {
+                return BitmapFactory.decodeFile(file.getAbsolutePath(), opts);
             }
         } catch (IOException e) {
             return null;
         }
+    }
+
+    /**
+     * Returns the smallest power-of-2 {@code inSampleSize} such that the decoded
+     * image fits within {@code maxW × maxH} pixels.
+     */
+    private static int calculateInSampleSize(int imgW, int imgH, int maxW, int maxH) {
+        int sample = 1;
+        while ((imgW / sample) > maxW || (imgH / sample) > maxH) {
+            sample *= 2;
+        }
+        return sample;
     }
 
     // ─────────────────────────────────────────────────────────────────────

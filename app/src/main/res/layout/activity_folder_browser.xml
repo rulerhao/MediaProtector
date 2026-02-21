@@ -16,49 +16,106 @@
         android:background="?attr/colorToolbar">
 
         <TextView
-            android:id="@+id/tvCurrentPath"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="/"
-            android:textColor="?attr/colorToolbarIcon"
-            android:textSize="13sp"
-            android:ellipsize="start"
-            android:singleLine="true" />
-
-        <Button
-            android:id="@+id/btnSelectFolder"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/btn_select"
-            android:textColor="@color/tab_indicator"
-            android:textStyle="bold"
-            android:background="?android:attr/selectableItemBackgroundBorderless" />
+            android:text="@string/browse_title"
+            android:textColor="?attr/colorToolbarText"
+            android:textSize="18sp"
+            android:textStyle="bold" />
 
     </LinearLayout>
 
-    <!-- Filter checkbox -->
-    <CheckBox
-        android:id="@+id/chkShowOnlyNonEmpty"
+    <!-- Mode tabs (Date / Folder) -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/chk_show_filtered_folders"
-        android:textColor="?android:attr/textColorPrimary"
-        android:padding="12dp"
-        android:background="?attr/colorSurface" />
+        android:orientation="horizontal"
+        android:background="?attr/colorToolbar">
 
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:background="?attr/colorDivider" />
+        <!-- Date tab -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
 
-    <!-- Folder list -->
-    <ListView
-        android:id="@+id/folderList"
+            <Button
+                android:id="@+id/btnModeDate"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:text="@string/browse_tab_date"
+                android:textColor="?attr/colorToolbarText"
+                android:textSize="13sp"
+                android:background="?android:attr/selectableItemBackgroundBorderless" />
+
+            <View
+                android:id="@+id/indicatorDate"
+                android:layout_width="match_parent"
+                android:layout_height="3dp"
+                android:background="@color/tab_indicator"
+                android:visibility="invisible" />
+
+        </LinearLayout>
+
+        <!-- Folder tab -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <Button
+                android:id="@+id/btnModeFolder"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:text="@string/browse_tab_folder"
+                android:textColor="?attr/colorToolbarText"
+                android:textSize="13sp"
+                android:background="?android:attr/selectableItemBackgroundBorderless" />
+
+            <View
+                android:id="@+id/indicatorFolder"
+                android:layout_width="match_parent"
+                android:layout_height="3dp"
+                android:background="@color/tab_indicator"
+                android:visibility="visible" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- Content area -->
+    <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:divider="?attr/colorDivider"
-        android:dividerHeight="1dp"
-        android:background="?attr/colorSurface" />
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <ListView
+            android:id="@+id/browseList"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:divider="?attr/colorDivider"
+            android:dividerHeight="1dp"
+            android:background="?android:attr/colorBackground" />
+
+        <ProgressBar
+            android:id="@+id/progressBar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/tvEmpty"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="@string/browse_empty"
+            android:textColor="?android:attr/textColorSecondary"
+            android:textSize="16sp"
+            android:visibility="gone" />
+
+    </FrameLayout>
 
 </LinearLayout>

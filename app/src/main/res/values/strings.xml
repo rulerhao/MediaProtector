@@ -50,4 +50,10 @@
     <!-- Settings -->
     <string name="settings_title">Settings</string>
     <string name="settings_dark_mode">Dark mode</string>
+
+    <!-- Browse activity -->
+    <string name="browse_title">Browse</string>
+    <string name="browse_tab_date">Date</string>
+    <string name="browse_tab_folder">Folder</string>
+    <string name="browse_empty">No media found</string>
 </resources>

@@ -6,36 +6,73 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.TypedValue;
+import android.view.View;
 import android.widget.Button;
-import android.widget.CheckBox;
 import android.widget.ListView;
+import android.widget.ProgressBar;
 import android.widget.TextView;
-import android.widget.Toast;
 
+import com.rulerhao.media_protector.crypto.HeaderObfuscator;
 import com.rulerhao.media_protector.data.MediaRepository;
 import com.rulerhao.media_protector.util.ThemeHelper;
 
 import java.io.File;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
+import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
+/**
+ * Media browser with two display modes:
+ *
+ * <ul>
+ *   <li><b>Date mode</b> — all media grouped by day ("FEBRUARY 19, 2026"),
+ *       newest first. Tapping a media row opens {@link MediaViewerActivity}
+ *       with all files from that day as the navigation list.</li>
+ *   <li><b>Folder mode</b> — folders that have media as direct children,
+ *       each followed by its media files. Tapping a folder header returns
+ *       that folder path to the calling activity via {@code RESULT_OK}.</li>
+ * </ul>
+ *
+ * <p>Both modes scan from external storage root. The scan runs once;
+ * switching modes just rebuilds the grouped list from the same result.
+ */
 public class FolderBrowserActivity extends Activity {
 
     public static final String EXTRA_SELECTED_FOLDER = "selected_folder";
     public static final String EXTRA_SHOW_ENCRYPTED  = "show_encrypted";
 
-    private TextView tvCurrentPath;
+    private enum BrowseMode { DATE, FOLDER }
+
+    private BrowseMode    mode      = BrowseMode.FOLDER;
+    private boolean       encrypted = true;
+
     private FolderAdapter adapter;
-    private File currentFolder;
-    private CheckBox chkShowOnlyNonEmpty;
-    private boolean showOnlyNonEmpty = false;
-    private boolean showEncrypted = true;
-    private MediaRepository repository;
+    private ProgressBar   progressBar;
+    private TextView      tvEmpty;
+
+    // Scan results — shared between modes; rebuilt into grouped lists without re-scanning.
+    private List<File> allFiles = null;
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
-    /** Guards against callbacks arriving after onDestroy(). */
     private volatile boolean destroyed = false;
+
+    private MediaRepository repository;
+
+    // Tab indicator views
+    private View   indicatorDate;
+    private View   indicatorFolder;
+    private Button btnModeDate;
+    private Button btnModeFolder;
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Lifecycle
+    // ─────────────────────────────────────────────────────────────────────
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -43,48 +80,48 @@ public class FolderBrowserActivity extends Activity {
         ThemeHelper.applyTheme(this);
         setContentView(R.layout.activity_folder_browser);
 
-        tvCurrentPath  = findViewById(R.id.tvCurrentPath);
-        ListView folderList = findViewById(R.id.folderList);
-        Button btnSelectFolder = findViewById(R.id.btnSelectFolder);
-        chkShowOnlyNonEmpty = findViewById(R.id.chkShowOnlyNonEmpty);
+        ListView browseList = findViewById(R.id.browseList);
+        progressBar         = findViewById(R.id.progressBar);
+        tvEmpty             = findViewById(R.id.tvEmpty);
+        btnModeDate         = findViewById(R.id.btnModeDate);
+        btnModeFolder       = findViewById(R.id.btnModeFolder);
+        indicatorDate       = findViewById(R.id.indicatorDate);
+        indicatorFolder     = findViewById(R.id.indicatorFolder);
 
-        showEncrypted = getIntent().getBooleanExtra(EXTRA_SHOW_ENCRYPTED, true);
-
+        encrypted  = getIntent().getBooleanExtra(EXTRA_SHOW_ENCRYPTED, true);
         repository = new MediaRepository();
-        adapter = new FolderAdapter(this, showEncrypted);
-        folderList.setAdapter(adapter);
+        adapter    = new FolderAdapter(this, encrypted);
+        browseList.setAdapter(adapter);
 
-        chkShowOnlyNonEmpty.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            showOnlyNonEmpty = isChecked;
-            loadFolder(currentFolder);
-        });
+        // Tab clicks
+        btnModeDate.setOnClickListener(v -> switchMode(BrowseMode.DATE));
+        btnModeFolder.setOnClickListener(v -> switchMode(BrowseMode.FOLDER));
 
-        currentFolder = Environment.getExternalStorageDirectory();
-        loadFolder(currentFolder);
-
-        folderList.setOnItemClickListener((parent, view, position, id) -> {
-            Object item = adapter.getItem(position);
+        // Item clicks
+        browseList.setOnItemClickListener((parent, view, position, id) -> {
+            FolderAdapter.BrowseItem item =
+                    (FolderAdapter.BrowseItem) adapter.getItem(position);
             if (item == null) return;
-            File selectedFolder = (File) item;
 
-            if (selectedFolder.getName().equals("..")) {
-                File parentDir = currentFolder.getParentFile();
-                if (parentDir != null && parentDir.canRead()) {
-                    currentFolder = parentDir;
-                    loadFolder(currentFolder);
-                }
-            } else if (selectedFolder.isDirectory()) {
-                currentFolder = selectedFolder;
-                loadFolder(currentFolder);
+            if (item.type == FolderAdapter.TYPE_FOLDER_HEADER && item.folder != null) {
+                // Folder mode: return the selected folder to the main activity.
+                Intent result = new Intent();
+                result.putExtra(EXTRA_SELECTED_FOLDER, item.folder.getAbsolutePath());
+                setResult(RESULT_OK, result);
+                finish();
+
+            } else if (item.type == FolderAdapter.TYPE_MEDIA) {
+                // Open MediaViewerActivity with this file + its section siblings.
+                Intent intent = new Intent(this, MediaViewerActivity.class);
+                intent.putExtra(MediaViewerActivity.EXTRA_FILE_LIST, item.sectionPaths);
+                intent.putExtra(MediaViewerActivity.EXTRA_FILE_INDEX, item.sectionIndex);
+                intent.putExtra(MediaViewerActivity.EXTRA_ENCRYPTED, encrypted);
+                startActivity(intent);
             }
         });
 
-        btnSelectFolder.setOnClickListener(v -> {
-            Intent result = new Intent();
-            result.putExtra(EXTRA_SELECTED_FOLDER, currentFolder.getAbsolutePath());
-            setResult(RESULT_OK, result);
-            finish();
-        });
+        updateTabUI();
+        startScan();
     }
 
     @Override
@@ -95,64 +132,207 @@ public class FolderBrowserActivity extends Activity {
         super.onDestroy();
     }
 
-    // -------------------------------------------------------------------------
+    // ─────────────────────────────────────────────────────────────────────
+    // Mode switching
+    // ─────────────────────────────────────────────────────────────────────
 
-    private void loadFolder(File folder) {
-        tvCurrentPath.setText(folder.getAbsolutePath());
+    private void switchMode(BrowseMode newMode) {
+        if (mode == newMode) return;
+        mode = newMode;
+        updateTabUI();
+        rebuildList();
+    }
 
-        if (!showOnlyNonEmpty) {
-            // Fast path: no media-presence check needed, build list on UI thread
-            adapter.setFolders(buildFolderList(folder, null));
-            if (adapter.getCount() == 0) {
-                Toast.makeText(this, R.string.toast_no_folders_found, Toast.LENGTH_SHORT).show();
+    private void updateTabUI() {
+        TypedValue tv = new TypedValue();
+        getTheme().resolveAttribute(android.R.attr.textColorPrimary, tv, true);
+        int active   = tv.data;
+        int inactive = getColor(R.color.tab_unselected);
+
+        btnModeDate.setTextColor(mode == BrowseMode.DATE ? active : inactive);
+        btnModeFolder.setTextColor(mode == BrowseMode.FOLDER ? active : inactive);
+        indicatorDate.setVisibility(mode == BrowseMode.DATE
+                ? View.VISIBLE : View.INVISIBLE);
+        indicatorFolder.setVisibility(mode == BrowseMode.FOLDER
+                ? View.VISIBLE : View.INVISIBLE);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Scan
+    // ─────────────────────────────────────────────────────────────────────
+
+    private void startScan() {
+        progressBar.setVisibility(View.VISIBLE);
+        tvEmpty.setVisibility(View.GONE);
+        adapter.setItems(new ArrayList<>());
+
+        File root = Environment.getExternalStorageDirectory();
+        MediaRepository.ScanCallback cb = new MediaRepository.ScanCallback() {
+            @Override
+            public void onScanComplete(List<File> files) {
+                mainHandler.post(() -> {
+                    if (destroyed) return;
+                    progressBar.setVisibility(View.GONE);
+                    allFiles = files;
+                    rebuildList();
+                });
             }
-            return;
-        }
-
-        // Slow path: hasMediaFiles() traverses subdirectories; run on background thread.
-        // Collect visible directories first (fast, no deep traversal).
-        List<File> candidates = buildFolderList(folder, null);
-        new Thread(() -> {
-            List<File> filtered = new ArrayList<>();
-            for (File f : candidates) {
-                if (f.getName().equals("..") || repository.hasMediaFiles(f, showEncrypted)) {
-                    filtered.add(f);
-                }
+            @Override
+            public void onScanError(Exception e) {
+                mainHandler.post(() -> {
+                    if (destroyed) return;
+                    progressBar.setVisibility(View.GONE);
+                    tvEmpty.setVisibility(View.VISIBLE);
+                });
             }
-            mainHandler.post(() -> {
-                if (destroyed) return;
-                adapter.setFolders(filtered);
-                if (adapter.getCount() == 0) {
-                    Toast.makeText(FolderBrowserActivity.this,
-                            R.string.toast_no_folders_found, Toast.LENGTH_SHORT).show();
-                }
-            });
-        }).start();
+        };
+
+        if (encrypted) repository.scanFiles(root, cb);
+        else           repository.scanUnencryptedFiles(root, cb);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // List building (runs on main thread; grouping is cheap CPU work)
+    // ─────────────────────────────────────────────────────────────────────
+
+    private void rebuildList() {
+        if (allFiles == null) return;
+        List<FolderAdapter.BrowseItem> items =
+                (mode == BrowseMode.DATE) ? buildDateItems() : buildFolderItems();
+        adapter.setItems(items);
+        tvEmpty.setVisibility(items.isEmpty() ? View.VISIBLE : View.GONE);
     }
 
     /**
-     * Builds the list of immediate subdirectories of {@code folder}.
-     * Pass a non-null {@code filter} to apply a predicate (unused for the non-filtered path).
+     * Groups all scanned files by calendar day, newest day first.
+     * Within each day files are also sorted newest-first.
      */
-    private List<File> buildFolderList(File folder, java.io.FileFilter filter) {
-        List<File> result = new ArrayList<>();
+    private List<FolderAdapter.BrowseItem> buildDateItems() {
+        // Sort all files newest-first.
+        List<File> sorted = new ArrayList<>(allFiles);
+        Collections.sort(sorted, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
 
-        // Parent marker
-        if (folder.getParentFile() != null) {
-            result.add(new File(folder, ".."));
+        // Group by day using a deterministic display string.
+        SimpleDateFormat dayFmt =
+                new SimpleDateFormat("MMMM d, yyyy", Locale.ENGLISH);
+        Map<String, List<File>> byDate = new LinkedHashMap<>();
+        for (File f : sorted) {
+            String day = dayFmt.format(new Date(f.lastModified()))
+                                .toUpperCase(Locale.ENGLISH);
+            List<File> group = byDate.get(day);
+            if (group == null) {
+                group = new ArrayList<>();
+                byDate.put(day, group);
+            }
+            group.add(f);
         }
 
-        File[] files = folder.listFiles();
-        if (files != null) {
-            Arrays.sort(files, (f1, f2) -> f1.getName().compareToIgnoreCase(f2.getName()));
-            for (File f : files) {
-                if (f.isDirectory() && !f.isHidden()) {
-                    if (filter == null || filter.accept(f)) {
-                        result.add(f);
-                    }
-                }
+        List<FolderAdapter.BrowseItem> result = new ArrayList<>();
+        for (Map.Entry<String, List<File>> entry : byDate.entrySet()) {
+            List<File> group = entry.getValue();
+
+            // Section header
+            FolderAdapter.BrowseItem header =
+                    new FolderAdapter.BrowseItem(FolderAdapter.TYPE_DATE_HEADER);
+            header.title    = entry.getKey();
+            header.subtitle = group.size() + " " + (group.size() == 1 ? "item" : "items");
+            result.add(header);
+
+            // Media rows
+            String[] paths = toPaths(group);
+            for (int i = 0; i < group.size(); i++) {
+                File f = group.get(i);
+                FolderAdapter.BrowseItem row =
+                        new FolderAdapter.BrowseItem(FolderAdapter.TYPE_MEDIA);
+                row.file         = f;
+                row.displayName  = resolvedName(f);
+                row.sectionPaths = paths;
+                row.sectionIndex = i;
+                result.add(row);
             }
         }
         return result;
+    }
+
+    /**
+     * Groups all scanned files by their parent folder.
+     * Only folders whose DIRECT children include media files appear
+     * (guaranteed because each file's parent is its immediate directory).
+     * Folders are sorted alphabetically by name.
+     */
+    private List<FolderAdapter.BrowseItem> buildFolderItems() {
+        // Group by parent folder, preserving insertion order for later sort.
+        Map<File, List<File>> byFolder = new LinkedHashMap<>();
+        for (File f : allFiles) {
+            File parent = f.getParentFile();
+            if (parent == null) continue;
+            List<File> group = byFolder.get(parent);
+            if (group == null) {
+                group = new ArrayList<>();
+                byFolder.put(parent, group);
+            }
+            group.add(f);
+        }
+
+        // Sort folders alphabetically.
+        List<Map.Entry<File, List<File>>> entries = new ArrayList<>(byFolder.entrySet());
+        Collections.sort(entries,
+                (a, b) -> a.getKey().getName().compareToIgnoreCase(b.getKey().getName()));
+
+        List<FolderAdapter.BrowseItem> result = new ArrayList<>();
+        for (Map.Entry<File, List<File>> entry : entries) {
+            File       folder = entry.getKey();
+            List<File> group  = entry.getValue();
+
+            // Find the newest file to use as the folder thumbnail.
+            File preview = null;
+            long newest  = 0;
+            for (File f : group) {
+                if (f.lastModified() > newest) {
+                    newest  = f.lastModified();
+                    preview = f;
+                }
+            }
+
+            // Folder section header
+            FolderAdapter.BrowseItem header =
+                    new FolderAdapter.BrowseItem(FolderAdapter.TYPE_FOLDER_HEADER);
+            header.title       = folder.getName();
+            header.subtitle    = group.size() + " " + (group.size() == 1 ? "file" : "files");
+            header.folder      = folder;
+            header.previewFile = preview;
+            result.add(header);
+
+            // Media rows (sorted newest-first within the folder)
+            List<File> sorted = new ArrayList<>(group);
+            Collections.sort(sorted, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
+            String[] paths = toPaths(sorted);
+            for (int i = 0; i < sorted.size(); i++) {
+                File f = sorted.get(i);
+                FolderAdapter.BrowseItem row =
+                        new FolderAdapter.BrowseItem(FolderAdapter.TYPE_MEDIA);
+                row.file         = f;
+                row.displayName  = resolvedName(f);
+                row.sectionPaths = paths;
+                row.sectionIndex = i;
+                result.add(row);
+            }
+        }
+        return result;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Helpers
+    // ─────────────────────────────────────────────────────────────────────
+
+    /** Returns the display name for a file, stripping the .mprot extension if encrypted. */
+    private String resolvedName(File f) {
+        return encrypted ? HeaderObfuscator.getOriginalName(f) : f.getName();
+    }
+
+    private static String[] toPaths(List<File> files) {
+        String[] paths = new String[files.size()];
+        for (int i = 0; i < files.size(); i++) paths[i] = files.get(i).getAbsolutePath();
+        return paths;
     }
 }

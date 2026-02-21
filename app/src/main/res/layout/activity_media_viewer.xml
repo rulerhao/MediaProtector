@@ -19,7 +19,7 @@
         android:layout_height="match_parent"
         android:visibility="gone" />
 
-    <!-- Top bar overlay: close button + filename -->
+    <!-- Top bar: close button + filename -->
     <LinearLayout
         android:id="@+id/viewerTopBar"
         android:layout_width="match_parent"
@@ -54,44 +54,72 @@
 
     </LinearLayout>
 
-    <!-- Video controls overlay at bottom -->
+    <!-- Bottom area: video controls (when video) + thumbnail filmstrip -->
     <LinearLayout
-        android:id="@+id/videoControls"
+        android:id="@+id/bottomArea"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:background="#CC000000"
-        android:paddingStart="8dp"
-        android:paddingEnd="16dp"
-        android:paddingTop="8dp"
-        android:paddingBottom="8dp"
-        android:visibility="gone">
+        android:orientation="vertical"
+        android:background="#CC000000">
 
-        <ImageButton
-            android:id="@+id/btnPlayPause"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:src="@android:drawable/ic_media_play"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/btn_play_pause" />
-
-        <SeekBar
-            android:id="@+id/seekBar"
-            android:layout_width="0dp"
+        <!-- Video controls — only visible when playing video -->
+        <LinearLayout
+            android:id="@+id/videoControls"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginStart="8dp"
-            android:layout_marginEnd="8dp" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="8dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            android:visibility="gone">
 
-        <TextView
-            android:id="@+id/tvDuration"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textColor="@color/white"
-            android:textSize="12sp"
-            android:text="0:00 / 0:00" />
+            <ImageButton
+                android:id="@+id/btnPlayPause"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@android:drawable/ic_media_play"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/btn_play_pause" />
+
+            <SeekBar
+                android:id="@+id/seekBar"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:layout_marginEnd="8dp" />
+
+            <TextView
+                android:id="@+id/tvDuration"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/white"
+                android:textSize="12sp"
+                android:text="0:00 / 0:00" />
+
+        </LinearLayout>
+
+        <!-- Thumbnail filmstrip — always visible in operator mode -->
+        <HorizontalScrollView
+            android:id="@+id/thumbnailStrip"
+            android:layout_width="match_parent"
+            android:layout_height="72dp"
+            android:scrollbars="none"
+            android:overScrollMode="never">
+
+            <LinearLayout
+                android:id="@+id/thumbnailContainer"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:orientation="horizontal"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
+                android:gravity="center_vertical" />
+
+        </HorizontalScrollView>
 
     </LinearLayout>
 

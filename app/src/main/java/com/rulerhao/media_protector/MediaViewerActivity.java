@@ -3,17 +3,22 @@ package com.rulerhao.media_protector;
 import android.app.Activity;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.media.MediaPlayer;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.GestureDetector;
+import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
 import android.widget.Button;
+import android.widget.FrameLayout;
+import android.widget.HorizontalScrollView;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -25,6 +30,7 @@ import com.rulerhao.media_protector.crypto.HeaderObfuscator;
 import com.rulerhao.media_protector.data.FileConfig;
 import com.rulerhao.media_protector.util.EncryptedMediaDataSource;
 import com.rulerhao.media_protector.util.ThemeHelper;
+import com.rulerhao.media_protector.util.ThumbnailLoader;
 
 import java.io.File;
 import java.io.IOException;
@@ -34,13 +40,17 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Full-screen viewer for images and videos with swipe-to-navigate and
- * auto-hiding overlays (top bar + video controls hide after 3 s of inactivity;
- * any touch reveals them again).
+ * Full-screen viewer with two explicit display modes:
  *
- * <p>Pass {@link #EXTRA_FILE_LIST} (String[]) and {@link #EXTRA_FILE_INDEX} (int)
- * to enable left/right swipe navigation.  Legacy single-file mode still works
- * via {@link #EXTRA_FILE_PATH}.
+ * <ul>
+ *   <li><b>Operator mode</b> — top bar, video controls (when applicable), and thumbnail
+ *       filmstrip at the bottom are all visible. Tap the media area to enter immersive mode.</li>
+ *   <li><b>Immersive mode</b> — all overlays are hidden; pure full-screen view.
+ *       Tap the media area to return to operator mode.</li>
+ * </ul>
+ *
+ * <p>Swipe left/right anywhere outside the bottom area to navigate to the previous/next file.
+ * Tapping a thumbnail in the filmstrip jumps directly to that file.
  */
 public class MediaViewerActivity extends Activity implements SurfaceHolder.Callback {
 
@@ -53,22 +63,32 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
     /** boolean — whether the files are AES-encrypted (.mprot). */
     public static final String EXTRA_ENCRYPTED  = "encrypted";
 
-    private static final int  SEEK_UPDATE_MS          = 500;
-    private static final long OVERLAY_HIDE_DELAY_MS   = 3_000;
-    private static final int  SWIPE_MIN_DISTANCE      = 80;   // px
-    private static final int  SWIPE_MIN_VELOCITY      = 100;  // px/s
+    private enum ViewerMode { OPERATOR, IMMERSIVE }
+
+    private static final int SEEK_UPDATE_MS     = 500;
+    private static final int SWIPE_MIN_DISTANCE = 80;    // px
+    private static final int SWIPE_MIN_VELOCITY = 100;   // px/s
+    private static final int THUMB_SIZE_DP      = 64;
+    private static final int THUMB_MARGIN_DP    = 4;
 
     // ── Views ─────────────────────────────────────────────────────────────
-    private View         viewerTopBar;
-    private TextView     tvFilename;
-    private ImageView    imageView;
-    private SurfaceView  surfaceView;
-    private LinearLayout videoControls;
-    private ImageButton  btnPlayPause;
-    private SeekBar      seekBar;
-    private TextView     tvDuration;
-    private ProgressBar  progressBar;
-    private TextView     tvError;
+    private View             viewerTopBar;
+    private TextView         tvFilename;
+    private ImageView        imageView;
+    private SurfaceView      surfaceView;
+    private LinearLayout     bottomArea;       // wraps videoControls + thumbnailStrip
+    private LinearLayout     videoControls;
+    private ImageButton      btnPlayPause;
+    private SeekBar          seekBar;
+    private TextView         tvDuration;
+    private HorizontalScrollView thumbnailStrip;
+    private LinearLayout     thumbnailContainer;
+    private ProgressBar      progressBar;
+    private TextView         tvError;
+
+    // ── Thumbnail filmstrip ────────────────────────────────────────────────
+    private FrameLayout[]  thumbContainers;
+    private ThumbnailLoader stripLoader;
 
     // ── Playback ──────────────────────────────────────────────────────────
     private MediaPlayer              mediaPlayer;
@@ -78,21 +98,18 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
     private boolean startOnPrepared = false;
     private boolean isVideoMode     = false;
 
-    // ── Navigation ────────────────────────────────────────────────────────
-    private String[] fileList;
-    private int      currentIndex;
-    private boolean  encrypted;
-    private File     mediaFile;
-
-    // ── Overlay auto-hide ─────────────────────────────────────────────────
-    private boolean overlaysVisible = true;
-    private final Handler  mainHandler  = new Handler(Looper.getMainLooper());
-    private final Runnable seekTick     = this::tickSeekBar;
-    private final Runnable hideRunnable = this::hideOverlays;
+    // ── Navigation & mode ─────────────────────────────────────────────────
+    private String[]   fileList;
+    private int        currentIndex;
+    private boolean    encrypted;
+    private File       mediaFile;
+    private ViewerMode viewerMode = ViewerMode.OPERATOR;
 
     // ── Misc ──────────────────────────────────────────────────────────────
+    private final Handler         mainHandler = new Handler(Looper.getMainLooper());
+    private final Runnable        seekTick    = this::tickSeekBar;
     private GestureDetector       gestureDetector;
-    private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor();
+    private final ExecutorService ioExecutor  = Executors.newSingleThreadExecutor();
 
     // ─────────────────────────────────────────────────────────────────────
     // Lifecycle
@@ -104,38 +121,37 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
         ThemeHelper.applyTheme(this);
         setContentView(R.layout.activity_media_viewer);
 
-        viewerTopBar  = findViewById(R.id.viewerTopBar);
-        tvFilename    = findViewById(R.id.tvFilename);
-        imageView     = findViewById(R.id.imageView);
-        surfaceView   = findViewById(R.id.surfaceView);
-        videoControls = findViewById(R.id.videoControls);
-        btnPlayPause  = findViewById(R.id.btnPlayPause);
-        seekBar       = findViewById(R.id.seekBar);
-        tvDuration    = findViewById(R.id.tvDuration);
-        progressBar   = findViewById(R.id.progressBar);
-        tvError       = findViewById(R.id.tvError);
+        viewerTopBar       = findViewById(R.id.viewerTopBar);
+        tvFilename         = findViewById(R.id.tvFilename);
+        imageView          = findViewById(R.id.imageView);
+        surfaceView        = findViewById(R.id.surfaceView);
+        bottomArea         = findViewById(R.id.bottomArea);
+        videoControls      = findViewById(R.id.videoControls);
+        btnPlayPause       = findViewById(R.id.btnPlayPause);
+        seekBar            = findViewById(R.id.seekBar);
+        tvDuration         = findViewById(R.id.tvDuration);
+        thumbnailStrip     = findViewById(R.id.thumbnailStrip);
+        thumbnailContainer = findViewById(R.id.thumbnailContainer);
+        progressBar        = findViewById(R.id.progressBar);
+        tvError            = findViewById(R.id.tvError);
 
-        // Register surface callback once for the entire activity lifetime.
         surfaceView.getHolder().addCallback(this);
 
-        // Close button
         Button btnBack = findViewById(R.id.btnBack);
         btnBack.setOnClickListener(v -> finish());
 
-        // Video control listeners are set once; safe regardless of how many videos we navigate.
         btnPlayPause.setOnClickListener(v -> togglePlayPause());
         seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
-                if (fromUser && playerPrepared && mediaPlayer != null) {
+                if (fromUser && playerPrepared && mediaPlayer != null)
                     mediaPlayer.seekTo(progress);
-                }
             }
             @Override public void onStartTrackingTouch(SeekBar bar) { stopSeekTicks(); }
             @Override public void onStopTrackingTouch(SeekBar bar)  { startSeekTicks(); }
         });
 
-        // Read intent extras — support both multi-file and legacy single-file mode.
+        // Resolve file list from intent.
         encrypted = getIntent().getBooleanExtra(EXTRA_ENCRYPTED, false);
         String[] list = getIntent().getStringArrayExtra(EXTRA_FILE_LIST);
         if (list != null && list.length > 0) {
@@ -149,22 +165,30 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
             currentIndex = 0;
         }
 
-        // Gesture: any tap → show overlays; horizontal fling → navigate prev/next.
+        stripLoader = new ThumbnailLoader();
+        buildThumbnailStrip();
+
+        // Gesture: single tap on media area → toggle mode; horizontal fling → navigate.
         gestureDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
+
             @Override
-            public boolean onDown(MotionEvent e) {
-                showOverlays();
-                return false; // don't consume — let child views keep handling clicks
+            public boolean onSingleTapUp(MotionEvent e) {
+                // Ignore taps that land on the top bar or bottom area so those
+                // views can handle their own click events normally.
+                if (viewerTopBar.getVisibility() == View.VISIBLE
+                        && e.getY() <= viewerTopBar.getBottom()) return false;
+                if (bottomArea.getVisibility() == View.VISIBLE
+                        && e.getY() >= bottomArea.getTop()) return false;
+                toggleMode();
+                return false; // don't consume — let normal dispatch continue
             }
 
             @Override
             public boolean onFling(MotionEvent e1, MotionEvent e2, float vX, float vY) {
                 if (e1 == null) return false;
-                // Don't intercept flings that start inside visible video controls.
-                if (isVideoMode && videoControls.getVisibility() == View.VISIBLE
-                        && e1.getY() >= videoControls.getTop()) {
-                    return false;
-                }
+                // Don't intercept flings that start inside the bottom area.
+                if (bottomArea.getVisibility() == View.VISIBLE
+                        && e1.getY() >= bottomArea.getTop()) return false;
                 float dX = e2.getX() - e1.getX();
                 float dY = e2.getY() - e1.getY();
                 if (Math.abs(dX) > Math.abs(dY)
@@ -184,7 +208,6 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
 
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev) {
-        // Feed every touch to the gesture detector before letting child views handle it.
         gestureDetector.onTouchEvent(ev);
         return super.dispatchTouchEvent(ev);
     }
@@ -210,8 +233,54 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
         mainHandler.removeCallbacksAndMessages(null);
         stopSeekTicks();
         releasePlayer();
+        stripLoader.destroy();
         ioExecutor.shutdownNow();
         super.onDestroy();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Mode: OPERATOR ↔ IMMERSIVE
+    // ─────────────────────────────────────────────────────────────────────
+
+    private void toggleMode() {
+        setMode(viewerMode == ViewerMode.OPERATOR ? ViewerMode.IMMERSIVE : ViewerMode.OPERATOR);
+    }
+
+    private void setMode(ViewerMode mode) {
+        viewerMode = mode;
+        boolean show = (mode == ViewerMode.OPERATOR);
+
+        // Top bar
+        viewerTopBar.animate().cancel();
+        if (show) {
+            if (viewerTopBar.getVisibility() != View.VISIBLE) {
+                viewerTopBar.setAlpha(0f);
+                viewerTopBar.setVisibility(View.VISIBLE);
+                viewerTopBar.animate().alpha(1f).setDuration(200).start();
+            }
+        } else {
+            viewerTopBar.animate().alpha(0f).setDuration(200)
+                    .withEndAction(() -> {
+                        if (viewerMode == ViewerMode.IMMERSIVE)
+                            viewerTopBar.setVisibility(View.GONE);
+                    }).start();
+        }
+
+        // Bottom area (video controls + filmstrip)
+        bottomArea.animate().cancel();
+        if (show) {
+            if (bottomArea.getVisibility() != View.VISIBLE) {
+                bottomArea.setAlpha(0f);
+                bottomArea.setVisibility(View.VISIBLE);
+                bottomArea.animate().alpha(1f).setDuration(200).start();
+            }
+        } else {
+            bottomArea.animate().alpha(0f).setDuration(200)
+                    .withEndAction(() -> {
+                        if (viewerMode == ViewerMode.IMMERSIVE)
+                            bottomArea.setVisibility(View.GONE);
+                    }).start();
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -238,9 +307,7 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
     private void loadCurrentMedia() {
         stopSeekTicks();
         releasePlayer();
-        mainHandler.removeCallbacks(hideRunnable);
 
-        // Reset shared UI state.
         playerPrepared  = false;
         startOnPrepared = false;
         progressBar.setVisibility(View.GONE);
@@ -248,12 +315,15 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
         seekBar.setProgress(0);
         tvDuration.setText("0:00 / 0:00");
 
-        // Resolve file and detect type.
         mediaFile = new File(fileList[currentIndex]);
         String originalName = encrypted
                 ? HeaderObfuscator.getOriginalName(mediaFile)
                 : mediaFile.getName();
         tvFilename.setText(originalName);
+
+        // Update filmstrip selection and scroll it into view.
+        updateThumbnailSelection(currentIndex);
+        scrollStripToIndex(currentIndex);
 
         isVideoMode = FileConfig.isVideoFile(originalName);
         if (isVideoMode) {
@@ -261,14 +331,15 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
             imageView.setVisibility(View.GONE);
             setupVideo();
         } else {
-            // Navigating away from video: tear down the surface.
             surfaceView.setVisibility(View.GONE);
             videoControls.setVisibility(View.GONE);
             surfaceReady = false;
             loadImage();
         }
 
-        showOverlays();
+        // Always return to operator mode when navigating so the user can see
+        // the filename, filmstrip, and video controls.
+        setMode(ViewerMode.OPERATOR);
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -278,12 +349,11 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
     private void loadImage() {
         imageView.setVisibility(View.VISIBLE);
         progressBar.setVisibility(View.VISIBLE);
-        // Capture the target so the callback can detect a stale load after navigation.
         final File target = mediaFile;
         ioExecutor.execute(() -> {
             Bitmap bmp = decodeImage(target);
             mainHandler.post(() -> {
-                if (!target.equals(mediaFile)) return; // user navigated away; discard
+                if (!target.equals(mediaFile)) return; // stale load; user navigated away
                 progressBar.setVisibility(View.GONE);
                 if (bmp != null) imageView.setImageBitmap(bmp);
                 else             showError(getString(R.string.error_load_media));
@@ -314,15 +384,13 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
         videoControls.setVisibility(View.VISIBLE);
         progressBar.setVisibility(View.VISIBLE);
         if (surfaceView.getVisibility() == View.VISIBLE) {
-            // Video → video: the old surface is still alive. Hide it so the
-            // system destroys the underlying Surface; surfaceDestroyed() will
-            // then post setVisibility(VISIBLE) to recreate it, firing
-            // surfaceCreated() → initPlayer() on a clean slate.
+            // Video → video: force surface destruction so surfaceCreated() fires
+            // fresh for the new player (avoids BufferQueue "already connected").
             surfaceView.setVisibility(View.GONE);
             surfaceReady = false;
         } else {
-            // Image → video (or first load): surface is already gone; just
-            // show it. surfaceCreated() will fire and call initPlayer().
+            // Image → video (or first load): surface already gone; show to trigger
+            // surfaceCreated() → initPlayer().
             surfaceView.setVisibility(View.VISIBLE);
         }
     }
@@ -398,11 +466,10 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
 
     private void releasePlayer() {
         if (mediaPlayer != null) {
-            // Explicitly disconnect from the surface BEFORE stop/release.
-            // Without this the underlying codec stays connected to the BufferQueue
-            // and the next player's setDisplay() throws "already connected".
+            // Disconnect from surface before release to clear the BufferQueue producer
+            // connection; without this the next player's prepareAsync() throws.
             try { mediaPlayer.setDisplay(null); } catch (IllegalStateException ignored) {}
-            try { mediaPlayer.stop(); } catch (IllegalStateException ignored) {}
+            try { mediaPlayer.stop(); }          catch (IllegalStateException ignored) {}
             mediaPlayer.release();
             mediaPlayer = null;
         }
@@ -431,51 +498,76 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
     public void surfaceDestroyed(SurfaceHolder holder) {
         surfaceReady = false;
         if (mediaPlayer != null) mediaPlayer.setDisplay(null);
-        // If the surface was torn down to make way for a new video (player already
-        // released by releasePlayer()), recreate it so surfaceCreated() fires and
-        // initPlayer() can connect the new player to a fresh surface.
+        // If a new video is waiting (player already released), recreate the surface
+        // so surfaceCreated() → initPlayer() can connect a fresh player.
         if (isVideoMode && mediaPlayer == null) {
             mainHandler.post(() -> {
-                if (isVideoMode && mediaPlayer == null) {
+                if (isVideoMode && mediaPlayer == null)
                     surfaceView.setVisibility(View.VISIBLE);
-                }
             });
         }
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // Overlay auto-hide
+    // Thumbnail filmstrip
     // ─────────────────────────────────────────────────────────────────────
 
-    private void showOverlays() {
-        mainHandler.removeCallbacks(hideRunnable);
-        overlaysVisible = true;
+    private void buildThumbnailStrip() {
+        thumbnailContainer.removeAllViews();
+        if (fileList == null || fileList.length == 0) return;
 
-        viewerTopBar.animate().cancel();
-        viewerTopBar.setAlpha(1f);
-        viewerTopBar.setVisibility(View.VISIBLE);
+        thumbContainers = new FrameLayout[fileList.length];
+        int sizePx   = dpToPx(THUMB_SIZE_DP);
+        int marginPx = dpToPx(THUMB_MARGIN_DP);
 
-        if (isVideoMode) {
-            videoControls.animate().cancel();
-            videoControls.setAlpha(1f);
-            videoControls.setVisibility(View.VISIBLE);
+        for (int i = 0; i < fileList.length; i++) {
+            final int index = i;
+            File file = new File(fileList[i]);
+
+            FrameLayout container = new FrameLayout(this);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    sizePx + marginPx * 2, LinearLayout.LayoutParams.MATCH_PARENT);
+            container.setLayoutParams(lp);
+            container.setOnClickListener(v -> navigateTo(index));
+
+            ImageView thumb = new ImageView(this);
+            FrameLayout.LayoutParams thumbLp = new FrameLayout.LayoutParams(sizePx, sizePx);
+            thumbLp.gravity = Gravity.CENTER;
+            thumb.setLayoutParams(thumbLp);
+            thumb.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            thumb.setBackgroundColor(0xFF2C2C2C); // dark placeholder while loading
+            container.addView(thumb);
+
+            thumbContainers[i] = container;
+            thumbnailContainer.addView(container);
+
+            stripLoader.loadThumbnail(file, encrypted, thumb);
         }
-
-        mainHandler.postDelayed(hideRunnable, OVERLAY_HIDE_DELAY_MS);
     }
 
-    private void hideOverlays() {
-        overlaysVisible = false;
-        viewerTopBar.animate()
-                .alpha(0f).setDuration(300)
-                .withEndAction(() -> { if (!overlaysVisible) viewerTopBar.setVisibility(View.GONE); })
-                .start();
-        if (isVideoMode && videoControls.getVisibility() == View.VISIBLE) {
-            videoControls.animate()
-                    .alpha(0f).setDuration(300)
-                    .withEndAction(() -> { if (!overlaysVisible) videoControls.setVisibility(View.GONE); })
-                    .start();
+    /** Highlights the item at {@code index} with a red border; clears all others. */
+    private void updateThumbnailSelection(int index) {
+        if (thumbContainers == null) return;
+        for (int i = 0; i < thumbContainers.length; i++) {
+            if (i == index) {
+                GradientDrawable border = new GradientDrawable();
+                border.setShape(GradientDrawable.RECTANGLE);
+                border.setStroke(dpToPx(2), getColor(R.color.primary_red));
+                border.setColor(Color.TRANSPARENT);
+                thumbContainers[i].setBackground(border);
+            } else {
+                thumbContainers[i].setBackground(null);
+            }
         }
+    }
+
+    /** Smooth-scrolls the filmstrip so the item at {@code index} is centered. */
+    private void scrollStripToIndex(int index) {
+        int itemWidth = dpToPx(THUMB_SIZE_DP + THUMB_MARGIN_DP * 2);
+        thumbnailStrip.post(() -> {
+            int target = index * itemWidth - thumbnailStrip.getWidth() / 2 + itemWidth / 2;
+            thumbnailStrip.smoothScrollTo(Math.max(0, target), 0);
+        });
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -509,6 +601,10 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
     private void showError(String msg) {
         tvError.setText(msg);
         tvError.setVisibility(View.VISIBLE);
+    }
+
+    private int dpToPx(int dp) {
+        return Math.round(dp * getResources().getDisplayMetrics().density);
     }
 
     private static String formatMs(int ms) {

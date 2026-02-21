@@ -6,6 +6,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import com.rulerhao.media_protector.util.ThumbnailLoader;
@@ -21,14 +22,20 @@ import java.util.List;
  * <ul>
  *   <li>{@link #TYPE_DATE_HEADER} — date section separator ("FEBRUARY 19, 2026")</li>
  *   <li>{@link #TYPE_FOLDER_HEADER} — folder with thumbnail; tap selects the folder</li>
- *   <li>{@link #TYPE_MEDIA} — individual media file row with thumbnail</li>
+ *   <li>{@link #TYPE_MEDIA_STRIP} — horizontal scrolling thumbnail strip for a section's files</li>
  * </ul>
  */
 public class FolderAdapter extends BaseAdapter {
 
     static final int TYPE_DATE_HEADER   = 0;
     static final int TYPE_FOLDER_HEADER = 1;
-    static final int TYPE_MEDIA         = 2;
+    static final int TYPE_MEDIA_STRIP   = 2;
+
+    // ─── Callback ─────────────────────────────────────────────────────────
+
+    interface OnFileClickListener {
+        void onFileClick(String[] sectionPaths, int index);
+    }
 
     // ─── Data model ───────────────────────────────────────────────────────
 
@@ -43,11 +50,9 @@ public class FolderAdapter extends BaseAdapter {
         File   folder;       // folder to return when tapped
         File   previewFile;  // file whose thumbnail represents this folder
 
-        // ── Media-item fields ──
-        File     file;
-        String   displayName;
-        String[] sectionPaths; // all file paths in the same section (for viewer)
-        int      sectionIndex; // this file's position in sectionPaths
+        // ── Strip fields ──
+        File[]   files;       // all files in this section
+        String[] paths;       // absolute paths parallel to files[]
 
         BrowseItem(int type) { this.type = type; }
     }
@@ -56,19 +61,26 @@ public class FolderAdapter extends BaseAdapter {
 
     private final List<BrowseItem> items     = new ArrayList<>();
     private final LayoutInflater   inflater;
+    private final Context          context;
     private final ThumbnailLoader  loader;
     private final boolean          encrypted;
+    private OnFileClickListener    fileClickListener;
 
     public FolderAdapter(Context context, boolean encrypted) {
-        this.inflater   = LayoutInflater.from(context);
-        this.encrypted  = encrypted;
-        this.loader     = new ThumbnailLoader();
+        this.context   = context;
+        this.inflater  = LayoutInflater.from(context);
+        this.encrypted = encrypted;
+        this.loader    = new ThumbnailLoader();
     }
 
     public void setItems(List<BrowseItem> newItems) {
         items.clear();
         items.addAll(newItems);
         notifyDataSetChanged();
+    }
+
+    public void setOnFileClickListener(OnFileClickListener listener) {
+        this.fileClickListener = listener;
     }
 
     /** Must be called from the owning Activity's {@code onDestroy()}. */
@@ -90,7 +102,7 @@ public class FolderAdapter extends BaseAdapter {
         switch (item.type) {
             case TYPE_DATE_HEADER:   return getDateHeaderView(item, convertView, parent);
             case TYPE_FOLDER_HEADER: return getFolderHeaderView(item, convertView, parent);
-            default:                 return getMediaView(item, convertView, parent);
+            default:                 return getMediaStripView(item, convertView, parent);
         }
     }
 
@@ -136,25 +148,46 @@ public class FolderAdapter extends BaseAdapter {
         return convertView;
     }
 
-    private View getMediaView(BrowseItem item, View convertView, ViewGroup parent) {
-        MediaHolder holder;
-        if (convertView == null) {
-            convertView = inflater.inflate(R.layout.item_browse_media, parent, false);
-            holder = new MediaHolder();
-            holder.thumb = convertView.findViewById(R.id.mediaThumb);
-            holder.name  = convertView.findViewById(R.id.tvMediaName);
-            convertView.setTag(holder);
-        } else {
-            holder = (MediaHolder) convertView.getTag();
+    private View getMediaStripView(BrowseItem item, View convertView, ViewGroup parent) {
+        // Strips cannot be recycled across different items because they contain
+        // a variable number of programmatically-added children. Always inflate fresh.
+        View strip = inflater.inflate(R.layout.item_browse_media_strip, parent, false);
+        LinearLayout container = strip.findViewById(R.id.stripContainer);
+
+        int thumbSize  = dpToPx(72);
+        int thumbMargin = dpToPx(4);
+
+        if (item.files != null) {
+            for (int i = 0; i < item.files.length; i++) {
+                final File   file  = item.files[i];
+                final String[] paths = item.paths;
+                final int    index = i;
+
+                ImageView iv = new ImageView(context);
+                LinearLayout.LayoutParams lp =
+                        new LinearLayout.LayoutParams(thumbSize, thumbSize);
+                lp.setMarginEnd(thumbMargin);
+                iv.setLayoutParams(lp);
+                iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                iv.setOnClickListener(v -> {
+                    if (fileClickListener != null)
+                        fileClickListener.onFileClick(paths, index);
+                });
+                loader.loadThumbnail(file, encrypted, iv);
+                container.addView(iv);
+            }
         }
-        holder.name.setText(item.displayName);
-        loader.loadThumbnail(item.file, encrypted, holder.thumb);
-        return convertView;
+        return strip;
+    }
+
+    // ─── Helpers ──────────────────────────────────────────────────────────
+
+    private int dpToPx(int dp) {
+        return Math.round(dp * context.getResources().getDisplayMetrics().density);
     }
 
     // ─── ViewHolders ──────────────────────────────────────────────────────
 
     private static class DateHolder   { TextView label, count; }
     private static class FolderHolder { ImageView thumb; TextView name, count; }
-    private static class MediaHolder  { ImageView thumb; TextView name; }
 }

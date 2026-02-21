@@ -13,7 +13,6 @@ import android.widget.ListView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
-import com.rulerhao.media_protector.crypto.HeaderObfuscator;
 import com.rulerhao.media_protector.data.MediaRepository;
 import com.rulerhao.media_protector.util.ThemeHelper;
 
@@ -97,7 +96,7 @@ public class FolderBrowserActivity extends Activity {
         btnModeDate.setOnClickListener(v -> switchMode(BrowseMode.DATE));
         btnModeFolder.setOnClickListener(v -> switchMode(BrowseMode.FOLDER));
 
-        // Item clicks
+        // Item clicks (only folder headers are clickable at the list level)
         browseList.setOnItemClickListener((parent, view, position, id) -> {
             FolderAdapter.BrowseItem item =
                     (FolderAdapter.BrowseItem) adapter.getItem(position);
@@ -109,15 +108,16 @@ public class FolderBrowserActivity extends Activity {
                 result.putExtra(EXTRA_SELECTED_FOLDER, item.folder.getAbsolutePath());
                 setResult(RESULT_OK, result);
                 finish();
-
-            } else if (item.type == FolderAdapter.TYPE_MEDIA) {
-                // Open MediaViewerActivity with this file + its section siblings.
-                Intent intent = new Intent(this, MediaViewerActivity.class);
-                intent.putExtra(MediaViewerActivity.EXTRA_FILE_LIST, item.sectionPaths);
-                intent.putExtra(MediaViewerActivity.EXTRA_FILE_INDEX, item.sectionIndex);
-                intent.putExtra(MediaViewerActivity.EXTRA_ENCRYPTED, encrypted);
-                startActivity(intent);
             }
+        });
+
+        // Thumbnail clicks inside strips open the viewer.
+        adapter.setOnFileClickListener((paths, index) -> {
+            Intent intent = new Intent(this, MediaViewerActivity.class);
+            intent.putExtra(MediaViewerActivity.EXTRA_FILE_LIST, paths);
+            intent.putExtra(MediaViewerActivity.EXTRA_FILE_INDEX, index);
+            intent.putExtra(MediaViewerActivity.EXTRA_ENCRYPTED, encrypted);
+            startActivity(intent);
         });
 
         updateTabUI();
@@ -238,18 +238,12 @@ public class FolderBrowserActivity extends Activity {
             header.subtitle = group.size() + " " + (group.size() == 1 ? "item" : "items");
             result.add(header);
 
-            // Media rows
-            String[] paths = toPaths(group);
-            for (int i = 0; i < group.size(); i++) {
-                File f = group.get(i);
-                FolderAdapter.BrowseItem row =
-                        new FolderAdapter.BrowseItem(FolderAdapter.TYPE_MEDIA);
-                row.file         = f;
-                row.displayName  = resolvedName(f);
-                row.sectionPaths = paths;
-                row.sectionIndex = i;
-                result.add(row);
-            }
+            // Horizontal thumbnail strip for all files in this day
+            FolderAdapter.BrowseItem strip =
+                    new FolderAdapter.BrowseItem(FolderAdapter.TYPE_MEDIA_STRIP);
+            strip.files = group.toArray(new File[0]);
+            strip.paths = toPaths(group);
+            result.add(strip);
         }
         return result;
     }
@@ -303,20 +297,14 @@ public class FolderBrowserActivity extends Activity {
             header.previewFile = preview;
             result.add(header);
 
-            // Media rows (sorted newest-first within the folder)
+            // Horizontal thumbnail strip (sorted newest-first within the folder)
             List<File> sorted = new ArrayList<>(group);
             Collections.sort(sorted, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
-            String[] paths = toPaths(sorted);
-            for (int i = 0; i < sorted.size(); i++) {
-                File f = sorted.get(i);
-                FolderAdapter.BrowseItem row =
-                        new FolderAdapter.BrowseItem(FolderAdapter.TYPE_MEDIA);
-                row.file         = f;
-                row.displayName  = resolvedName(f);
-                row.sectionPaths = paths;
-                row.sectionIndex = i;
-                result.add(row);
-            }
+            FolderAdapter.BrowseItem strip =
+                    new FolderAdapter.BrowseItem(FolderAdapter.TYPE_MEDIA_STRIP);
+            strip.files = sorted.toArray(new File[0]);
+            strip.paths = toPaths(sorted);
+            result.add(strip);
         }
         return result;
     }
@@ -324,11 +312,6 @@ public class FolderBrowserActivity extends Activity {
     // ─────────────────────────────────────────────────────────────────────
     // Helpers
     // ─────────────────────────────────────────────────────────────────────
-
-    /** Returns the display name for a file, stripping the .mprot extension if encrypted. */
-    private String resolvedName(File f) {
-        return encrypted ? HeaderObfuscator.getOriginalName(f) : f.getName();
-    }
 
     private static String[] toPaths(List<File> files) {
         String[] paths = new String[files.size()];

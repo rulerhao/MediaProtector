@@ -51,7 +51,7 @@ public class FolderBrowserActivity extends Activity {
         showEncrypted = getIntent().getBooleanExtra(EXTRA_SHOW_ENCRYPTED, true);
 
         repository = new MediaRepository();
-        adapter = new FolderAdapter(this);
+        adapter = new FolderAdapter(this, showEncrypted);
         folderList.setAdapter(adapter);
 
         chkShowOnlyNonEmpty.setOnCheckedChangeListener((buttonView, isChecked) -> {
@@ -90,6 +90,7 @@ public class FolderBrowserActivity extends Activity {
     @Override
     protected void onDestroy() {
         destroyed = true;
+        adapter.destroy();
         repository.destroy();
         super.onDestroy();
     }

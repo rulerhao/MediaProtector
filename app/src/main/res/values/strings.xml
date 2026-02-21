@@ -7,6 +7,7 @@
     <string name="btn_sort">Sort</string>
     <string name="btn_browse">Browse</string>
     <string name="btn_encrypt">Encrypt (%d)</string>
+    <string name="btn_protect">Protect (%d)</string>
     <string name="btn_decrypt">Decrypt (%d)</string>
     <string name="btn_select">Select</string>
     <string name="btn_encrypt_selected">Encrypt Selected</string>

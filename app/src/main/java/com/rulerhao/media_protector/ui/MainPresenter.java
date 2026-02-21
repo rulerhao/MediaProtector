@@ -149,6 +149,27 @@ public class MainPresenter implements MainContract.Presenter {
     }
 
     @Override
+    public void encryptFiles(List<File> files) {
+        if (files.isEmpty() || operationInProgress) return;
+        operationInProgress = true;
+        withView(v -> v.updateSelectionMode(false, 0));
+        repository.encryptFiles(files, new MediaRepository.OperationCallback() {
+            @Override
+            public void onProgress(int done, int total) {
+                postIfAlive(() -> withView(v -> v.showProgress(done, total, true)));
+            }
+            @Override
+            public void onComplete(int succeeded, int failed) {
+                operationInProgress = false;
+                postIfAlive(() -> {
+                    withView(v -> v.showOperationResult(succeeded, failed));
+                    loadMedia();
+                });
+            }
+        });
+    }
+
+    @Override
     public void decryptSelected() {
         if (selectedFiles.isEmpty() || operationInProgress) return;
 

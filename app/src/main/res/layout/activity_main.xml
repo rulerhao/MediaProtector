@@ -50,7 +50,7 @@
 
     </LinearLayout>
 
-    <!-- ===== Mode Tabs ===== -->
+    <!-- ===== Protected / Original mode tabs ===== -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -109,12 +109,74 @@
 
     </LinearLayout>
 
-    <!-- ===== Grid area ===== -->
+    <!-- ===== Browse Date / Folder sub-tabs (visible in Original mode only) ===== -->
+    <LinearLayout
+        android:id="@+id/browseModeBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="?attr/colorToolbar"
+        android:visibility="gone">
+
+        <!-- Date tab -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <Button
+                android:id="@+id/btnBrowseModeDate"
+                android:layout_width="match_parent"
+                android:layout_height="36dp"
+                android:text="@string/browse_tab_date"
+                android:textColor="?attr/colorToolbarText"
+                android:textSize="12sp"
+                android:background="?android:attr/selectableItemBackgroundBorderless" />
+
+            <View
+                android:id="@+id/indicatorBrowseDate"
+                android:layout_width="match_parent"
+                android:layout_height="2dp"
+                android:background="@color/tab_indicator"
+                android:visibility="visible" />
+
+        </LinearLayout>
+
+        <!-- Folder tab -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <Button
+                android:id="@+id/btnBrowseModeFolder"
+                android:layout_width="match_parent"
+                android:layout_height="36dp"
+                android:text="@string/browse_tab_folder"
+                android:textColor="@color/tab_unselected"
+                android:textSize="12sp"
+                android:background="?android:attr/selectableItemBackgroundBorderless" />
+
+            <View
+                android:id="@+id/indicatorBrowseFolder"
+                android:layout_width="match_parent"
+                android:layout_height="2dp"
+                android:background="@color/tab_indicator"
+                android:visibility="invisible" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- ===== Content area ===== -->
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1">
 
+        <!-- Protected mode: flat grid -->
         <GridView
             android:id="@+id/gridView"
             android:layout_width="match_parent"
@@ -123,6 +185,24 @@
             android:horizontalSpacing="2dp"
             android:verticalSpacing="2dp"
             android:stretchMode="columnWidth" />
+
+        <!-- Original mode: browse list -->
+        <ListView
+            android:id="@+id/browseListView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:divider="?attr/colorDivider"
+            android:dividerHeight="1dp"
+            android:background="?android:attr/colorBackground"
+            android:visibility="gone" />
+
+        <!-- Shared loading / empty indicators -->
+        <ProgressBar
+            android:id="@+id/browseProgressBar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:visibility="gone" />
 
         <TextView
             android:id="@+id/tvEmpty"

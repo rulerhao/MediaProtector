@@ -41,6 +41,9 @@ public interface MainContract {
 
         void encryptSelected();
 
+        /** Encrypts an arbitrary list of files (used by the browse/Original tab). */
+        void encryptFiles(List<File> files);
+
         void sortFiles(SortOption option);
 
         void loadFolder(File folder);

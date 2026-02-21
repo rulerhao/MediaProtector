@@ -48,7 +48,6 @@ public class FolderAdapter extends BaseAdapter {
 
         // ── Folder-header-only fields ──
         File   folder;       // folder to return when tapped
-        File   previewFile;  // file whose thumbnail represents this folder
 
         // ── Strip fields ──
         File[]   files;       // all files in this section
@@ -129,7 +128,6 @@ public class FolderAdapter extends BaseAdapter {
         if (convertView == null) {
             convertView = inflater.inflate(R.layout.item_browse_header_folder, parent, false);
             holder = new FolderHolder();
-            holder.thumb = convertView.findViewById(R.id.folderThumb);
             holder.name  = convertView.findViewById(R.id.tvFolderName);
             holder.count = convertView.findViewById(R.id.tvFolderCount);
             convertView.setTag(holder);
@@ -138,13 +136,6 @@ public class FolderAdapter extends BaseAdapter {
         }
         holder.name.setText(item.title);
         holder.count.setText(item.subtitle);
-        if (item.previewFile != null) {
-            loader.loadThumbnail(item.previewFile, encrypted, holder.thumb);
-        } else {
-            holder.thumb.setTag(null);
-            holder.thumb.setImageResource(android.R.drawable.ic_menu_view);
-            holder.thumb.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-        }
         return convertView;
     }
 
@@ -189,5 +180,5 @@ public class FolderAdapter extends BaseAdapter {
     // ─── ViewHolders ──────────────────────────────────────────────────────
 
     private static class DateHolder   { TextView label, count; }
-    private static class FolderHolder { ImageView thumb; TextView name, count; }
+    private static class FolderHolder { TextView name, count; }
 }

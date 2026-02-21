@@ -278,23 +278,12 @@ public class FolderBrowserActivity extends Activity {
             File       folder = entry.getKey();
             List<File> group  = entry.getValue();
 
-            // Find the newest file to use as the folder thumbnail.
-            File preview = null;
-            long newest  = 0;
-            for (File f : group) {
-                if (f.lastModified() > newest) {
-                    newest  = f.lastModified();
-                    preview = f;
-                }
-            }
-
             // Folder section header
             FolderAdapter.BrowseItem header =
                     new FolderAdapter.BrowseItem(FolderAdapter.TYPE_FOLDER_HEADER);
-            header.title       = folder.getName();
-            header.subtitle    = group.size() + " " + (group.size() == 1 ? "file" : "files");
-            header.folder      = folder;
-            header.previewFile = preview;
+            header.title    = folder.getName();
+            header.subtitle = group.size() + " " + (group.size() == 1 ? "file" : "files");
+            header.folder   = folder;
             result.add(header);
 
             // Horizontal thumbnail strip (sorted newest-first within the folder)

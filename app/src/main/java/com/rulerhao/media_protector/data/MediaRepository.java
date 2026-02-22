@@ -121,6 +121,67 @@ public class MediaRepository {
         }).start();
     }
 
+    /**
+     * Export encrypted files to a destination folder as decrypted copies.
+     * Original encrypted files are NOT deleted.
+     */
+    public void exportFiles(List<File> files, File destFolder, OperationCallback callback) {
+        new Thread(() -> {
+            int succeeded = 0;
+            int failed = 0;
+            int total = files.size();
+
+            // Ensure destination folder exists
+            if (!destFolder.exists()) {
+                destFolder.mkdirs();
+            }
+
+            for (int i = 0; i < total; i++) {
+                File file = files.get(i);
+                try {
+                    String originalName = HeaderObfuscator.getOriginalName(file);
+                    File outFile = new File(destFolder, originalName);
+                    // Handle duplicate filenames
+                    outFile = getUniqueFile(outFile);
+                    obfuscator.decrypt(file, outFile);
+                    succeeded++;
+                } catch (Exception e) {
+                    Log.e(TAG, "Failed to export: " + file, e);
+                    failed++;
+                }
+                callback.onProgress(i + 1, total);
+            }
+            callback.onComplete(succeeded, failed);
+        }).start();
+    }
+
+    /**
+     * Returns a unique file by appending (1), (2), etc. if the file already exists.
+     */
+    private File getUniqueFile(File file) {
+        if (!file.exists()) return file;
+
+        String name = file.getName();
+        String baseName;
+        String extension;
+        int dotIndex = name.lastIndexOf('.');
+        if (dotIndex > 0) {
+            baseName = name.substring(0, dotIndex);
+            extension = name.substring(dotIndex);
+        } else {
+            baseName = name;
+            extension = "";
+        }
+
+        int counter = 1;
+        File parent = file.getParentFile();
+        while (file.exists()) {
+            file = new File(parent, baseName + "(" + counter + ")" + extension);
+            counter++;
+        }
+        return file;
+    }
+
     // -------------------------------------------------------------------------
     // Folder filter (used by FolderBrowserActivity)
     // -------------------------------------------------------------------------

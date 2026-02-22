@@ -10,7 +10,13 @@
     <string name="btn_protect">Protect (%d)</string>
     <string name="btn_decrypt">Decrypt (%d)</string>
     <string name="btn_select">Select</string>
+    <string name="btn_export">Export</string>
     <string name="btn_encrypt_selected">Encrypt Selected</string>
+
+    <!-- Export -->
+    <string name="toast_export_complete">Exported %1$d files to %2$s</string>
+    <string name="toast_export_failed">Export failed: %1$d succeeded, %2$d failed</string>
+    <string name="progress_exporting">Exporting %1$d / %2$d…</string>
     
     <!-- view modes -->
     <string name="view_mode_encrypted">View: Encrypted</string>
@@ -57,4 +63,26 @@
     <string name="browse_tab_date">Date</string>
     <string name="browse_tab_folder">Folder</string>
     <string name="browse_empty">No media found</string>
+
+    <!-- Lock screen -->
+    <string name="lock_title">MediaProtector</string>
+    <string name="lock_subtitle_pin">Enter your PIN</string>
+    <string name="lock_subtitle_setup">Create a 4-digit PIN</string>
+    <string name="lock_subtitle_confirm">Confirm your PIN</string>
+    <string name="lock_error_mismatch">PINs do not match</string>
+    <string name="lock_error_wrong">Wrong PIN</string>
+    <string name="lock_fingerprint_hint">Touch sensor to unlock</string>
+    <string name="btn_fingerprint">Fingerprint</string>
+    <string name="btn_backspace">Backspace</string>
+
+    <!-- Security settings -->
+    <string name="settings_security">Security</string>
+    <string name="settings_pin_lock">PIN lock</string>
+    <string name="settings_fingerprint">Fingerprint unlock</string>
+    <string name="settings_change_pin">Change PIN</string>
+    <string name="toast_pin_enabled">PIN lock enabled</string>
+    <string name="toast_pin_disabled">PIN lock disabled</string>
+    <string name="toast_fingerprint_enabled">Fingerprint unlock enabled</string>
+    <string name="toast_fingerprint_disabled">Fingerprint unlock disabled</string>
+    <string name="toast_fingerprint_not_available">Fingerprint not available on this device</string>
 </resources>

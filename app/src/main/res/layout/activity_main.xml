@@ -5,109 +5,6 @@
     android:orientation="vertical"
     android:background="?android:attr/colorBackground">
 
-    <!-- ===== Toolbar ===== -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="56dp"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingStart="4dp"
-        android:paddingEnd="4dp"
-        android:background="?attr/colorToolbar">
-
-        <!-- Spacer pushes action buttons to the right -->
-        <View
-            android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:layout_weight="1" />
-
-        <Button
-            android:id="@+id/btnSort"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/btn_sort"
-            android:textColor="?attr/colorToolbarIcon"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:textSize="13sp" />
-
-        <Button
-            android:id="@+id/btnBrowseFolder"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/btn_browse"
-            android:textColor="?attr/colorToolbarIcon"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:textSize="13sp" />
-
-        <Button
-            android:id="@+id/btnSettings"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="&#x2699;"
-            android:textColor="?attr/colorToolbarIcon"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:textSize="18sp" />
-
-    </LinearLayout>
-
-    <!-- ===== Protected / Original mode tabs ===== -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:background="?attr/colorToolbar">
-
-        <!-- Protected tab -->
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical">
-
-            <Button
-                android:id="@+id/btnModeProtected"
-                android:layout_width="match_parent"
-                android:layout_height="40dp"
-                android:text="@string/tab_protected"
-                android:textColor="?attr/colorToolbarText"
-                android:textSize="13sp"
-                android:background="?android:attr/selectableItemBackgroundBorderless" />
-
-            <View
-                android:id="@+id/indicatorProtected"
-                android:layout_width="match_parent"
-                android:layout_height="3dp"
-                android:background="@color/tab_indicator"
-                android:visibility="visible" />
-
-        </LinearLayout>
-
-        <!-- Original tab -->
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical">
-
-            <Button
-                android:id="@+id/btnModeOriginal"
-                android:layout_width="match_parent"
-                android:layout_height="40dp"
-                android:text="@string/tab_original"
-                android:textColor="@color/tab_unselected"
-                android:textSize="13sp"
-                android:background="?android:attr/selectableItemBackgroundBorderless" />
-
-            <View
-                android:id="@+id/indicatorOriginal"
-                android:layout_width="match_parent"
-                android:layout_height="3dp"
-                android:background="@color/tab_indicator"
-                android:visibility="invisible" />
-
-        </LinearLayout>
-
-    </LinearLayout>
 
     <!-- ===== Browse Date / Folder sub-tabs (visible in Original mode only) ===== -->
     <LinearLayout
@@ -215,6 +112,170 @@
             android:gravity="center"
             android:visibility="gone" />
 
+        <!-- ===== Settings page (inside content area, hidden by default) ===== -->
+        <ScrollView
+            android:id="@+id/settingsPage"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="?android:attr/colorBackground"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <!-- Dark mode row -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:paddingTop="18dp"
+                    android:paddingBottom="18dp"
+                    android:background="?attr/colorSurface"
+                    android:layout_marginTop="8dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/settings_dark_mode"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="16sp" />
+
+                    <Switch
+                        android:id="@+id/switchDarkMode"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" />
+
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="?attr/colorDivider" />
+
+                <!-- Security section header -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/settings_security"
+                    android:textColor="@color/tab_indicator"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:paddingTop="16dp"
+                    android:paddingBottom="8dp" />
+
+                <!-- PIN lock row -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:paddingTop="18dp"
+                    android:paddingBottom="18dp"
+                    android:background="?attr/colorSurface">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/settings_pin_lock"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="16sp" />
+
+                    <Switch
+                        android:id="@+id/switchPinLock"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" />
+
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="?attr/colorDivider" />
+
+                <!-- Fingerprint row -->
+                <LinearLayout
+                    android:id="@+id/fingerprintRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:paddingTop="18dp"
+                    android:paddingBottom="18dp"
+                    android:background="?attr/colorSurface"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/settings_fingerprint"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="16sp" />
+
+                    <Switch
+                        android:id="@+id/switchFingerprint"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" />
+
+                </LinearLayout>
+
+                <View
+                    android:id="@+id/fingerprintDivider"
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="?attr/colorDivider"
+                    android:visibility="gone" />
+
+                <!-- Change PIN row -->
+                <LinearLayout
+                    android:id="@+id/changePinRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:paddingTop="18dp"
+                    android:paddingBottom="18dp"
+                    android:background="?attr/colorSurface"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/settings_change_pin"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="16sp" />
+
+                </LinearLayout>
+
+                <View
+                    android:id="@+id/changePinDivider"
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="?attr/colorDivider"
+                    android:visibility="gone" />
+
+            </LinearLayout>
+
+        </ScrollView>
+
     </FrameLayout>
 
     <!-- ===== Selection bottom bar (hidden when not selecting) ===== -->
@@ -238,6 +299,17 @@
             android:background="?android:attr/selectableItemBackground" />
 
         <Button
+            android:id="@+id/btnExport"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:text="@string/btn_export"
+            android:textColor="?android:attr/textColorPrimary"
+            android:textSize="13sp"
+            android:background="?android:attr/selectableItemBackground"
+            android:visibility="gone" />
+
+        <Button
             android:id="@+id/btnEncrypt"
             android:layout_width="0dp"
             android:layout_height="match_parent"
@@ -247,6 +319,80 @@
             android:textColor="@color/white"
             android:textSize="14sp"
             android:textStyle="bold" />
+
+    </LinearLayout>
+
+    <!-- ===== Bottom Navigation Bar ===== -->
+    <LinearLayout
+        android:id="@+id/bottomNavBar"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:orientation="horizontal"
+        android:background="?attr/colorToolbar"
+        android:elevation="8dp">
+
+        <!-- Protected nav item -->
+        <LinearLayout
+            android:id="@+id/navProtected"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true">
+
+            <ImageView
+                android:id="@+id/navProtectedIcon"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_nav_protected"
+                android:tint="@color/tab_indicator" />
+
+        </LinearLayout>
+
+        <!-- Original nav item -->
+        <LinearLayout
+            android:id="@+id/navOriginal"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true">
+
+            <ImageView
+                android:id="@+id/navOriginalIcon"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_nav_original"
+                android:tint="@color/tab_unselected" />
+
+        </LinearLayout>
+
+        <!-- Settings nav item -->
+        <LinearLayout
+            android:id="@+id/navSettings"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true">
+
+            <ImageView
+                android:id="@+id/navSettingsIcon"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_nav_settings"
+                android:tint="@color/tab_unselected" />
+
+        </LinearLayout>
 
     </LinearLayout>
 

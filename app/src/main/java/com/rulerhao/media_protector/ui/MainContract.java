@@ -22,6 +22,10 @@ public interface MainContract {
         void showOperationResult(int succeeded, int failed);
 
         void showProgress(int done, int total, boolean encrypting);
+
+        void showExportResult(int succeeded, int failed, String folderName);
+
+        void showExportProgress(int done, int total);
     }
 
     interface Presenter {
@@ -51,5 +55,8 @@ public interface MainContract {
         void decryptSelected();
 
         void deselectAll();
+
+        /** Export selected encrypted files as decrypted copies to a destination folder. */
+        void exportSelected(java.io.File destFolder);
     }
 }

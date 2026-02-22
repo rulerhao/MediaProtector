@@ -194,6 +194,30 @@ public class MainPresenter implements MainContract.Presenter {
         });
     }
 
+    @Override
+    public void exportSelected(File destFolder) {
+        if (selectedFiles.isEmpty() || operationInProgress) return;
+
+        operationInProgress = true;
+        List<File> toExport = new ArrayList<>(selectedFiles);
+        selectedFiles.clear();
+        withView(v -> v.updateSelectionMode(false, 0));
+
+        String folderName = destFolder.getName();
+
+        repository.exportFiles(toExport, destFolder, new MediaRepository.OperationCallback() {
+            @Override
+            public void onProgress(int done, int total) {
+                postIfAlive(() -> withView(v -> v.showExportProgress(done, total)));
+            }
+            @Override
+            public void onComplete(int succeeded, int failed) {
+                operationInProgress = false;
+                postIfAlive(() -> withView(v -> v.showExportResult(succeeded, failed, folderName)));
+            }
+        });
+    }
+
     // -------------------------------------------------------------------------
     // Load / Sort / Folder
     // -------------------------------------------------------------------------

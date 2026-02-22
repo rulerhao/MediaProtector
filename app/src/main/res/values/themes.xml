@@ -45,4 +45,14 @@
     <!-- Manifest alias; activities override via ThemeHelper.applyTheme() -->
     <style name="Theme.Minimal" parent="Theme.Minimal.Dark" />
 
+    <!-- PIN button style -->
+    <style name="PinButton">
+        <item name="android:layout_width">72dp</item>
+        <item name="android:layout_height">72dp</item>
+        <item name="android:layout_margin">4dp</item>
+        <item name="android:textSize">24sp</item>
+        <item name="android:textColor">?android:attr/textColorPrimary</item>
+        <item name="android:background">?android:attr/selectableItemBackgroundBorderless</item>
+    </style>
+
 </resources>

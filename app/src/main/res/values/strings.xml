@@ -4,8 +4,6 @@
     <!-- Buttons -->
     <string name="btn_select_all">Select All</string>
     <string name="btn_deselect_all">Deselect All</string>
-    <string name="btn_sort">Sort</string>
-    <string name="btn_browse">Browse</string>
     <string name="btn_encrypt">Encrypt (%d)</string>
     <string name="btn_protect">Protect (%d)</string>
     <string name="btn_decrypt">Decrypt (%d)</string>
@@ -18,18 +16,10 @@
     <string name="toast_export_failed">Export failed: %1$d succeeded, %2$d failed</string>
     <string name="progress_exporting">Exporting %1$d / %2$d…</string>
     
-    <!-- view modes -->
-    <string name="view_mode_encrypted">View: Encrypted</string>
-    <string name="view_mode_unencrypted">View: Unencrypted</string>
-    
-    <!-- Checkboxes -->
-    <string name="chk_show_filtered_folders">Show only folders with files</string>
     
     <!-- Toasts / Messages -->
     <string name="toast_found_files">Found %d files</string>
     <string name="toast_permission_denied">Permission denied</string>
-    <string name="toast_browsing_folder">Browsing: %s</string>
-    <string name="toast_no_folders_found">No folders found</string>
     <string name="toast_operation_result">Done: %1$d succeeded, %2$d failed</string>
     <string name="toast_encrypted">File protected</string>
     <string name="toast_decrypted">File decrypted</string>
@@ -39,11 +29,6 @@
     <string name="progress_encrypting">Encrypting %1$d / %2$d…</string>
     <string name="progress_decrypting">Decrypting %1$d / %2$d…</string>
     
-    <!-- Sort Options -->
-    <string name="sort_name_az">Name (A-Z)</string>
-    <string name="sort_name_za">Name (Z-A)</string>
-    <string name="sort_date_oldest">Date (Oldest First)</string>
-    <string name="sort_date_newest">Date (Newest First)</string>
 
     <!-- Media Viewer -->
     <string name="btn_play_pause">Play / Pause</string>
@@ -51,22 +36,14 @@
     <string name="btn_encrypt_single">Protect</string>
     <string name="error_load_media">Failed to load media file</string>
 
-    <!-- Mode tabs -->
-    <string name="tab_protected">Protected</string>
-    <string name="tab_original">Original</string>
 
     <!-- Empty state -->
     <string name="label_no_files">No files found</string>
 
     <!-- Settings -->
-    <string name="settings_title">Settings</string>
     <string name="settings_dark_mode">Dark mode</string>
-
-    <!-- Browse activity -->
-    <string name="browse_title">Browse</string>
     <string name="browse_tab_date">Date</string>
     <string name="browse_tab_folder">Folder</string>
-    <string name="browse_empty">No media found</string>
 
     <!-- Lock screen -->
     <string name="lock_title">MediaProtector</string>

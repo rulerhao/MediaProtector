@@ -23,15 +23,9 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".FolderBrowserActivity"
-            android:exported="false" />
-        <activity
             android:name=".MediaViewerActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize" />
-        <activity
-            android:name=".SettingsActivity"
-            android:exported="false" />
         <activity
             android:name=".LockScreenActivity"
             android:exported="false"

@@ -10,7 +10,6 @@ import com.rulerhao.media_protector.data.MediaRepository;
 import java.io.File;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -242,23 +241,6 @@ public class MainPresenter implements MainContract.Presenter {
         } else {
             repository.scanUnencryptedFiles(root, callback);
         }
-    }
-
-    @Override
-    public void sortFiles(SortOption option) {
-        if (currentFileList == null || currentFileList.isEmpty()) return;
-
-        Collections.sort(currentFileList, (f1, f2) -> {
-            switch (option) {
-                case NAME_ASC: return f1.getName().compareToIgnoreCase(f2.getName());
-                case NAME_DESC: return f2.getName().compareToIgnoreCase(f1.getName());
-                case DATE_ASC: return Long.compare(f1.lastModified(), f2.lastModified());
-                case DATE_DESC: return Long.compare(f2.lastModified(), f1.lastModified());
-                default: return 0;
-            }
-        });
-
-        withView(v -> v.showFiles(currentFileList));
     }
 
     @Override

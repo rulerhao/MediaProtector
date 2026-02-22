@@ -82,7 +82,7 @@ public class FolderBrowserActivity extends Activity {
         indicatorFolder     = findViewById(R.id.indicatorFolder);
 
         encrypted  = getIntent().getBooleanExtra(EXTRA_SHOW_ENCRYPTED, true);
-        repository = new MediaRepository();
+        repository = new MediaRepository(this);
         adapter    = new FolderAdapter(this, encrypted);
         browseList.setAdapter(adapter);
 
@@ -121,7 +121,7 @@ public class FolderBrowserActivity extends Activity {
     @Override
     protected void onDestroy() {
         destroyed = true;
-        adapter.destroy();
+        // ThumbnailLoader is a singleton, no need to destroy; cache persists.
         repository.destroy();
         super.onDestroy();
     }

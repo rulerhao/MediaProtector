@@ -1,8 +1,10 @@
 package com.rulerhao.media_protector.data;
 
+import android.content.Context;
 import android.util.Log;
 
 import com.rulerhao.media_protector.crypto.HeaderObfuscator;
+import com.rulerhao.media_protector.util.OriginalPathStore;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -13,6 +15,7 @@ import java.util.concurrent.Executors;
 public class MediaRepository {
 
     private static final String TAG = "MediaRepository";
+    private final Context context;
 
     // System folders to skip during recursive search
     private static final String[] SYSTEM_FOLDERS = {
@@ -20,8 +23,20 @@ public class MediaRepository {
         "obb", "apex", "vendor", "product", "odm"
     };
 
+    /** Operation types for unified file processing. */
+    public enum Operation {
+        ENCRYPT,
+        DECRYPT,
+        EXPORT
+    }
+
     private final ExecutorService scanExecutor = Executors.newSingleThreadExecutor();
+    private final ExecutorService cryptoExecutor = Executors.newSingleThreadExecutor();
     private final HeaderObfuscator obfuscator = new HeaderObfuscator();
+
+    public MediaRepository(Context context) {
+        this.context = context.getApplicationContext();
+    }
 
     // -------------------------------------------------------------------------
     // Callbacks
@@ -69,56 +84,21 @@ public class MediaRepository {
     }
 
     // -------------------------------------------------------------------------
-    // Encrypt / Decrypt
+    // Encrypt / Decrypt / Export (unified processing)
     // -------------------------------------------------------------------------
 
+    /**
+     * Encrypt files: converts original files to .mprot format, deletes originals.
+     */
     public void encryptFiles(List<File> files, OperationCallback callback) {
-        new Thread(() -> {
-            int succeeded = 0;
-            int failed = 0;
-            int total = files.size();
-            for (int i = 0; i < total; i++) {
-                File file = files.get(i);
-                try {
-                    File outFile = HeaderObfuscator.getObfuscatedFile(file);
-                    obfuscator.encrypt(file, outFile);
-                    if (!file.delete()) {
-                        Log.w(TAG, "Could not delete original after encrypt: " + file);
-                    }
-                    succeeded++;
-                } catch (Exception e) {
-                    Log.e(TAG, "Failed to encrypt: " + file, e);
-                    failed++;
-                }
-                callback.onProgress(i + 1, total);
-            }
-            callback.onComplete(succeeded, failed);
-        }).start();
+        processFiles(Operation.ENCRYPT, files, null, callback);
     }
 
+    /**
+     * Decrypt files: converts .mprot files back to original format, deletes encrypted.
+     */
     public void decryptFiles(List<File> files, OperationCallback callback) {
-        new Thread(() -> {
-            int succeeded = 0;
-            int failed = 0;
-            int total = files.size();
-            for (int i = 0; i < total; i++) {
-                File file = files.get(i);
-                try {
-                    String originalName = HeaderObfuscator.getOriginalName(file);
-                    File outFile = new File(file.getParent(), originalName);
-                    obfuscator.decrypt(file, outFile);
-                    if (!file.delete()) {
-                        Log.w(TAG, "Could not delete encrypted file after decrypt: " + file);
-                    }
-                    succeeded++;
-                } catch (Exception e) {
-                    Log.e(TAG, "Failed to decrypt: " + file, e);
-                    failed++;
-                }
-                callback.onProgress(i + 1, total);
-            }
-            callback.onComplete(succeeded, failed);
-        }).start();
+        processFiles(Operation.DECRYPT, files, null, callback);
     }
 
     /**
@@ -126,33 +106,105 @@ public class MediaRepository {
      * Original encrypted files are NOT deleted.
      */
     public void exportFiles(List<File> files, File destFolder, OperationCallback callback) {
-        new Thread(() -> {
+        processFiles(Operation.EXPORT, files, destFolder, callback);
+    }
+
+    /**
+     * Unified file processing method that handles encrypt, decrypt, and export operations.
+     * Runs on a managed ExecutorService for proper lifecycle management.
+     *
+     * @param op         the operation to perform
+     * @param files      the files to process
+     * @param destFolder destination folder (only used for EXPORT operation)
+     * @param callback   progress and completion callback
+     */
+    private void processFiles(Operation op, List<File> files, File destFolder,
+                              OperationCallback callback) {
+        cryptoExecutor.execute(() -> {
             int succeeded = 0;
             int failed = 0;
             int total = files.size();
 
-            // Ensure destination folder exists
-            if (!destFolder.exists()) {
+            // For export: ensure destination folder exists
+            if (op == Operation.EXPORT && destFolder != null && !destFolder.exists()) {
                 destFolder.mkdirs();
             }
 
             for (int i = 0; i < total; i++) {
                 File file = files.get(i);
                 try {
-                    String originalName = HeaderObfuscator.getOriginalName(file);
-                    File outFile = new File(destFolder, originalName);
-                    // Handle duplicate filenames
-                    outFile = getUniqueFile(outFile);
-                    obfuscator.decrypt(file, outFile);
+                    switch (op) {
+                        case ENCRYPT:
+                            processEncrypt(file);
+                            break;
+                        case DECRYPT:
+                            processDecrypt(file);
+                            break;
+                        case EXPORT:
+                            processExport(file, destFolder);
+                            break;
+                    }
                     succeeded++;
                 } catch (Exception e) {
-                    Log.e(TAG, "Failed to export: " + file, e);
+                    Log.e(TAG, "Failed to " + op.name().toLowerCase() + ": " + file, e);
                     failed++;
                 }
                 callback.onProgress(i + 1, total);
             }
             callback.onComplete(succeeded, failed);
-        }).start();
+        });
+    }
+
+    private void processEncrypt(File file) throws Exception {
+        File outFile = HeaderObfuscator.getObfuscatedFile(file);
+
+        // Store original path before encrypting (for potential restore later)
+        OriginalPathStore.storePath(context, outFile.getName(), file.getAbsolutePath());
+
+        obfuscator.encrypt(file, outFile);
+        if (!file.delete()) {
+            Log.w(TAG, "Could not delete original after encrypt: " + file);
+        }
+    }
+
+    private void processDecrypt(File file) throws Exception {
+        String originalName = HeaderObfuscator.getOriginalName(file);
+        File outFile;
+
+        // Check if we should restore to original location
+        if (OriginalPathStore.isRestoreToOriginalEnabled(context)) {
+            String originalPath = OriginalPathStore.getOriginalPath(context, file.getName());
+            if (originalPath != null) {
+                outFile = new File(originalPath);
+                // Ensure parent directory exists
+                File parentDir = outFile.getParentFile();
+                if (parentDir != null && !parentDir.exists()) {
+                    parentDir.mkdirs();
+                }
+            } else {
+                // Fallback to same directory if original path not found
+                outFile = new File(file.getParent(), originalName);
+            }
+        } else {
+            // Keep in same directory (current behavior)
+            outFile = new File(file.getParent(), originalName);
+        }
+
+        obfuscator.decrypt(file, outFile);
+
+        // Remove stored path after successful decrypt
+        OriginalPathStore.removePath(context, file.getName());
+
+        if (!file.delete()) {
+            Log.w(TAG, "Could not delete encrypted file after decrypt: " + file);
+        }
+    }
+
+    private void processExport(File file, File destFolder) throws Exception {
+        String originalName = HeaderObfuscator.getOriginalName(file);
+        File outFile = new File(destFolder, originalName);
+        outFile = getUniqueFile(outFile);
+        obfuscator.decrypt(file, outFile);
     }
 
     /**
@@ -214,6 +266,7 @@ public class MediaRepository {
 
     public void destroy() {
         scanExecutor.shutdownNow();
+        cryptoExecutor.shutdownNow();
     }
 
     // -------------------------------------------------------------------------

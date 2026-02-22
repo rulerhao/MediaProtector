@@ -52,6 +52,22 @@
             android:ellipsize="middle"
             android:singleLine="true" />
 
+        <!-- Encrypt/Decrypt button -->
+        <Button
+            android:id="@+id/btnCrypto"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:minWidth="90dp"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:text="@string/btn_decrypt_single"
+            android:textColor="@color/white"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:elevation="4dp"
+            android:stateListAnimator="@null"
+            android:backgroundTint="@color/primary_red" />
+
     </LinearLayout>
 
     <!-- Bottom area: video controls (when video) + thumbnail filmstrip -->

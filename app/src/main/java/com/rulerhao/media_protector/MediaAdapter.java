@@ -29,7 +29,7 @@ public class MediaAdapter extends BaseAdapter {
 
     public MediaAdapter(Context context) {
         this.inflater = LayoutInflater.from(context);
-        this.thumbnailLoader = new ThumbnailLoader();
+        this.thumbnailLoader = ThumbnailLoader.getInstance();
     }
 
     public void setFiles(List<File> newFiles) {
@@ -48,9 +48,9 @@ public class MediaAdapter extends BaseAdapter {
         notifyDataSetChanged();
     }
 
-    /** Must be called from {@code Activity.onDestroy()} to release background threads. */
-    public void destroy() {
-        thumbnailLoader.destroy();
+    /** Clears thumbnail cache. Call when switching modes to free memory. */
+    public void clearCache() {
+        thumbnailLoader.clearCache();
     }
 
     @Override public int getCount() { return files.size(); }

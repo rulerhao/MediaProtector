@@ -1,6 +1,7 @@
 package com.rulerhao.media_protector;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
@@ -26,6 +27,8 @@ import android.widget.ProgressBar;
 import android.widget.SeekBar;
 import android.widget.TextView;
 
+import android.widget.Toast;
+
 import com.rulerhao.media_protector.crypto.HeaderObfuscator;
 import com.rulerhao.media_protector.data.FileConfig;
 import com.rulerhao.media_protector.util.EncryptedMediaDataSource;
@@ -35,6 +38,8 @@ import com.rulerhao.media_protector.util.ThumbnailLoader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -90,6 +95,15 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
     private FrameLayout[]  thumbContainers;
     private ThumbnailLoader stripLoader;
 
+    // ── Crypto ───────────────────────────────────────────────────────────────
+    private Button btnCrypto;
+    private final HeaderObfuscator obfuscator = new HeaderObfuscator();
+    private volatile boolean cryptoInProgress = false;
+
+    /** Tracks files that were encrypted/decrypted during this session */
+    private final List<String> processedFiles = new ArrayList<>();
+    public static final String EXTRA_PROCESSED_FILES = "processed_files";
+
     // ── Playback ──────────────────────────────────────────────────────────
     private MediaPlayer              mediaPlayer;
     private EncryptedMediaDataSource mediaDataSource;
@@ -140,6 +154,9 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
         Button btnBack = findViewById(R.id.btnBack);
         btnBack.setOnClickListener(v -> finish());
 
+        btnCrypto = findViewById(R.id.btnCrypto);
+        btnCrypto.setOnClickListener(v -> performCrypto());
+
         btnPlayPause.setOnClickListener(v -> togglePlayPause());
         seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
@@ -165,7 +182,7 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
             currentIndex = 0;
         }
 
-        stripLoader = new ThumbnailLoader();
+        stripLoader = ThumbnailLoader.getInstance();
         buildThumbnailStrip();
 
         // Gesture: single tap on media area → toggle mode; horizontal fling → navigate.
@@ -229,11 +246,22 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
     }
 
     @Override
+    public void finish() {
+        // Return list of processed files to caller
+        if (!processedFiles.isEmpty()) {
+            Intent data = new Intent();
+            data.putStringArrayListExtra(EXTRA_PROCESSED_FILES, new ArrayList<>(processedFiles));
+            setResult(RESULT_OK, data);
+        }
+        super.finish();
+    }
+
+    @Override
     protected void onDestroy() {
         mainHandler.removeCallbacksAndMessages(null);
         stopSeekTicks();
         releasePlayer();
-        stripLoader.destroy();
+        // ThumbnailLoader is a singleton, no need to destroy; cache persists.
         ioExecutor.shutdownNow();
         super.onDestroy();
     }
@@ -320,6 +348,9 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
                 ? HeaderObfuscator.getOriginalName(mediaFile)
                 : mediaFile.getName();
         tvFilename.setText(originalName);
+
+        // Update crypto button text based on current mode
+        updateCryptoButton();
 
         // Update filmstrip selection and scroll it into view.
         updateThumbnailSelection(currentIndex);
@@ -642,5 +673,121 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
     private static String formatMs(int ms) {
         int s = ms / 1000;
         return String.format(Locale.getDefault(), "%d:%02d", s / 60, s % 60);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Encrypt / Decrypt
+    // ─────────────────────────────────────────────────────────────────────
+
+    private void updateCryptoButton() {
+        btnCrypto.setText(encrypted ? R.string.btn_decrypt_single : R.string.btn_encrypt_single);
+        btnCrypto.setEnabled(!cryptoInProgress);
+    }
+
+    private void performCrypto() {
+        if (cryptoInProgress || mediaFile == null) return;
+
+        cryptoInProgress = true;
+        btnCrypto.setEnabled(false);
+
+        // Stop video playback before crypto operation
+        if (isVideoMode && mediaPlayer != null) {
+            if (mediaPlayer.isPlaying()) {
+                mediaPlayer.pause();
+                btnPlayPause.setImageResource(android.R.drawable.ic_media_play);
+                stopSeekTicks();
+            }
+        }
+        releasePlayer();
+
+        final File sourceFile = mediaFile;
+        final boolean wasEncrypted = encrypted;
+
+        ioExecutor.execute(() -> {
+            File newFile = null;
+            boolean success = false;
+            try {
+                if (wasEncrypted) {
+                    // Decrypt: .mprot → original
+                    String originalName = HeaderObfuscator.getOriginalName(sourceFile);
+                    newFile = new File(sourceFile.getParent(), originalName);
+                    obfuscator.decrypt(sourceFile, newFile);
+                    sourceFile.delete();
+                } else {
+                    // Encrypt: original → .mprot
+                    newFile = HeaderObfuscator.getObfuscatedFile(sourceFile);
+                    obfuscator.encrypt(sourceFile, newFile);
+                    sourceFile.delete();
+                }
+                success = true;
+            } catch (Exception e) {
+                // Crypto failed
+            }
+
+            final boolean opSuccess = success;
+            final File resultFile = newFile;
+            final boolean newEncrypted = !wasEncrypted;
+
+            final String originalPath = sourceFile.getAbsolutePath();
+
+            mainHandler.post(() -> {
+                cryptoInProgress = false;
+
+                if (opSuccess && resultFile != null) {
+                    // Track the processed file (original path before crypto)
+                    processedFiles.add(originalPath);
+
+                    Toast.makeText(this,
+                            newEncrypted ? R.string.toast_encrypted : R.string.toast_decrypted,
+                            Toast.LENGTH_SHORT).show();
+
+                    // Remove current file from list and navigate
+                    removeCurrentAndNavigate();
+                } else {
+                    btnCrypto.setEnabled(true);
+                    Toast.makeText(this, R.string.error_generic, Toast.LENGTH_SHORT).show();
+                }
+            });
+        });
+    }
+
+    private void rebuildThumbnailStrip() {
+        thumbnailContainer.removeAllViews();
+        buildThumbnailStrip();
+        updateThumbnailSelection(currentIndex);
+    }
+
+    /**
+     * Removes current file from list and navigates to next, prev, or exits if empty.
+     */
+    private void removeCurrentAndNavigate() {
+        if (fileList == null || fileList.length == 0) {
+            finish();
+            return;
+        }
+
+        if (fileList.length == 1) {
+            // Only one file, exit viewer
+            finish();
+            return;
+        }
+
+        // Build new file list without current file
+        List<String> newList = new ArrayList<>();
+        for (int i = 0; i < fileList.length; i++) {
+            if (i != currentIndex) {
+                newList.add(fileList[i]);
+            }
+        }
+        fileList = newList.toArray(new String[0]);
+
+        // Adjust index: prefer next file, fall back to previous
+        if (currentIndex >= fileList.length) {
+            currentIndex = fileList.length - 1;
+        }
+
+        // Rebuild strip and load new current file
+        rebuildThumbnailStrip();
+        loadCurrentMedia();
     }
 }

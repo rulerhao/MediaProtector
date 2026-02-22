@@ -23,11 +23,13 @@ import android.widget.Toast;
 import com.rulerhao.media_protector.data.MediaRepository;
 import com.rulerhao.media_protector.ui.MainContract;
 import com.rulerhao.media_protector.ui.MainPresenter;
+import com.rulerhao.media_protector.util.OriginalPathStore;
 import com.rulerhao.media_protector.util.SecurityHelper;
 import com.rulerhao.media_protector.util.ThemeHelper;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -72,6 +74,7 @@ public class MainActivity extends Activity implements MainContract.View {
     private View   fingerprintDivider;
     private View   changePinRow;
     private View   changePinDivider;
+    private Switch switchRestoreLocation;
 
     // ─── Current navigation tab ──────────────────────────────────────────
     private enum NavTab { PROTECTED, ORIGINAL, SETTINGS }
@@ -96,9 +99,19 @@ public class MainActivity extends Activity implements MainContract.View {
     private static final int PIN_SETUP_REQUEST_CODE      = 300;
     private static final int PIN_CHANGE_REQUEST_CODE     = 301;
     private static final int LOCK_SCREEN_REQUEST_CODE    = 302;
+    private static final int SECTION_VIEW_REQUEST_CODE   = 303;
+    private static final int VIEWER_REQUEST_CODE         = 304;
 
     /** Track whether app is authenticated (for lock screen). */
     private boolean isAuthenticated = false;
+
+    // ─── Scroll position preservation ────────────────────────────────────
+    private int protectedScrollPosition = 0;
+    private int protectedScrollOffset = 0;
+    private int browseDateScrollPosition = 0;
+    private int browseDateScrollOffset = 0;
+    private int browseFolderScrollPosition = 0;
+    private int browseFolderScrollOffset = 0;
 
     // ─────────────────────────────────────────────────────────────────────
     // Lifecycle
@@ -147,6 +160,7 @@ public class MainActivity extends Activity implements MainContract.View {
         fingerprintDivider = findViewById(R.id.fingerprintDivider);
         changePinRow      = findViewById(R.id.changePinRow);
         changePinDivider  = findViewById(R.id.changePinDivider);
+        switchRestoreLocation = findViewById(R.id.switchRestoreLocation);
 
         // Adapters / presenter
         adapter = new MediaAdapter(this);
@@ -155,7 +169,7 @@ public class MainActivity extends Activity implements MainContract.View {
         browseAdapter = new FolderAdapter(this, false /* unencrypted */);
         browseListView.setAdapter(browseAdapter);
 
-        presenter = new MainPresenter(this, new MediaRepository());
+        presenter = new MainPresenter(this, new MediaRepository(this));
 
         // ── Bottom navigation bar ────────────────────────────────────────
         navProtected.setOnClickListener(v -> switchNavTab(NavTab.PROTECTED));
@@ -173,6 +187,12 @@ public class MainActivity extends Activity implements MainContract.View {
 
         // ── Security settings ────────────────────────────────────────────
         setupSecuritySettings();
+
+        // ── Storage settings ────────────────────────────────────────────
+        switchRestoreLocation.setChecked(OriginalPathStore.isRestoreToOriginalEnabled(this));
+        switchRestoreLocation.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            OriginalPathStore.setRestoreToOriginalEnabled(this, isChecked);
+        });
 
         // ── Browse sub-tabs ──────────────────────────────────────────────
         btnBrowseModeDate.setOnClickListener(v   -> switchBrowseMode(BrowseMode.DATE));
@@ -215,8 +235,16 @@ public class MainActivity extends Activity implements MainContract.View {
                 intent.putExtra(MediaViewerActivity.EXTRA_FILE_LIST, paths);
                 intent.putExtra(MediaViewerActivity.EXTRA_FILE_INDEX, index);
                 intent.putExtra(MediaViewerActivity.EXTRA_ENCRYPTED, false);
-                startActivity(intent);
+                startActivityForResult(intent, VIEWER_REQUEST_CODE);
             }
+        });
+
+        // Header (date/folder) tap → open section view with all files
+        browseAdapter.setOnHeaderClickListener((title, paths) -> {
+            Intent intent = new Intent(this, SectionViewActivity.class);
+            intent.putExtra(SectionViewActivity.EXTRA_TITLE, title);
+            intent.putExtra(SectionViewActivity.EXTRA_FILE_PATHS, paths);
+            startActivityForResult(intent, SECTION_VIEW_REQUEST_CODE);
         });
 
         // Browse selection changes → update bottom bar
@@ -292,8 +320,8 @@ public class MainActivity extends Activity implements MainContract.View {
 
     @Override
     protected void onDestroy() {
-        browseAdapter.destroy();
-        adapter.destroy();
+        // Note: ThumbnailLoader is a singleton, no need to clear cache on destroy.
+        // The cache persists across activity recreations (e.g., theme change).
         presenter.onDestroy();
         super.onDestroy();
     }
@@ -313,6 +341,10 @@ public class MainActivity extends Activity implements MainContract.View {
                         getString(R.string.toast_found_files, files.size()),
                         Toast.LENGTH_SHORT).show();
             }
+            // Restore scroll position
+            gridView.post(() -> {
+                gridView.setSelectionFromTop(protectedScrollPosition, protectedScrollOffset);
+            });
         } else {
             // Original (browse) mode: build grouped browse list
             browseProgressBar.setVisibility(View.GONE);
@@ -322,6 +354,14 @@ public class MainActivity extends Activity implements MainContract.View {
                             : BrowseListBuilder.buildFolderItems(files);
             browseAdapter.setItems(items);
             tvEmpty.setVisibility(items.isEmpty() ? View.VISIBLE : View.GONE);
+            // Restore scroll position
+            browseListView.post(() -> {
+                if (browseMode == BrowseMode.DATE) {
+                    browseListView.setSelectionFromTop(browseDateScrollPosition, browseDateScrollOffset);
+                } else {
+                    browseListView.setSelectionFromTop(browseFolderScrollPosition, browseFolderScrollOffset);
+                }
+            });
         }
     }
 
@@ -343,7 +383,11 @@ public class MainActivity extends Activity implements MainContract.View {
         Toast.makeText(this,
                 getString(R.string.toast_operation_result, succeeded, failed),
                 Toast.LENGTH_SHORT).show();
-        if (!showEncrypted) {
+        if (showEncrypted) {
+            // Protected mode: clear selection state and hide bar
+            gridSelectionActive = false;
+            selectionBar.setVisibility(View.GONE);
+        } else {
             // Browse encrypt finished: clear selection state
             browseAdapter.clearSelection();
             selectionBar.setVisibility(View.GONE);
@@ -478,6 +522,33 @@ public class MainActivity extends Activity implements MainContract.View {
                 // User didn't authenticate - exit app
                 finishAffinity();
             }
+        } else if (requestCode == SECTION_VIEW_REQUEST_CODE) {
+            if (resultCode == RESULT_OK && data != null) {
+                // User selected files to protect from section view
+                ArrayList<String> selectedPaths = data.getStringArrayListExtra("selected_files");
+                if (selectedPaths != null && !selectedPaths.isEmpty()) {
+                    List<File> filesToEncrypt = new ArrayList<>();
+                    for (String path : selectedPaths) {
+                        filesToEncrypt.add(new File(path));
+                    }
+                    presenter.encryptFiles(filesToEncrypt);
+                }
+            }
+        } else if (requestCode == VIEWER_REQUEST_CODE) {
+            if (resultCode == RESULT_OK && data != null) {
+                // Files were encrypted/decrypted in viewer
+                ArrayList<String> processedFiles = data.getStringArrayListExtra(
+                        MediaViewerActivity.EXTRA_PROCESSED_FILES);
+                if (processedFiles != null && !processedFiles.isEmpty()) {
+                    if (showEncrypted) {
+                        // Protected mode: refresh to remove decrypted files
+                        presenter.switchMode(true);
+                    } else {
+                        // Browse mode: remove processed files from current items (preserves scroll position)
+                        removeProcessedFilesFromBrowse(new HashSet<>(processedFiles));
+                    }
+                }
+            }
         }
     }
 
@@ -487,6 +558,10 @@ public class MainActivity extends Activity implements MainContract.View {
 
     private void switchBrowseMode(BrowseMode newMode) {
         if (browseMode == newMode) return;
+
+        // Save scroll position of current browse mode
+        saveBrowseScrollPosition();
+
         browseMode = newMode;
         updateBrowseModeTabUI();
         // Rebuild from the adapter's current items (no re-scan needed)
@@ -494,6 +569,7 @@ public class MainActivity extends Activity implements MainContract.View {
         browseProgressBar.setVisibility(View.VISIBLE);
         browseAdapter.setItems(new ArrayList<>());
         presenter.switchMode(false); // same mode, triggers loadMedia() → showFiles()
+        // Scroll position restored in showFiles after data loads
     }
 
     private void updateBrowseModeTabUI() {
@@ -516,6 +592,10 @@ public class MainActivity extends Activity implements MainContract.View {
 
     private void switchNavTab(NavTab tab) {
         if (currentNavTab == tab) return;
+
+        // Save scroll position of current tab before switching
+        saveCurrentScrollPosition();
+
         currentNavTab = tab;
         updateNavBarUI();
 
@@ -535,6 +615,8 @@ public class MainActivity extends Activity implements MainContract.View {
                 gridView.setVisibility(View.VISIBLE);
                 browseAdapter.clearSelection();
                 presenter.switchMode(true);
+                // Restore scroll position after data loads
+                gridView.post(() -> gridView.setSelection(protectedScrollPosition));
                 break;
 
             case ORIGINAL:
@@ -545,6 +627,7 @@ public class MainActivity extends Activity implements MainContract.View {
                 browseProgressBar.setVisibility(View.VISIBLE);
                 browseAdapter.setItems(new ArrayList<>());
                 presenter.switchMode(false);
+                // Scroll position restored in showFiles after data loads
                 break;
 
             case SETTINGS:
@@ -582,7 +665,7 @@ public class MainActivity extends Activity implements MainContract.View {
         intent.putExtra(MediaViewerActivity.EXTRA_FILE_LIST, paths);
         intent.putExtra(MediaViewerActivity.EXTRA_FILE_INDEX, startIndex);
         intent.putExtra(MediaViewerActivity.EXTRA_ENCRYPTED, showEncrypted);
-        startActivity(intent);
+        startActivityForResult(intent, VIEWER_REQUEST_CODE);
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -678,5 +761,103 @@ public class MainActivity extends Activity implements MainContract.View {
             intent.putExtra(LockScreenActivity.EXTRA_MODE, LockScreenActivity.MODE_UNLOCK);
             startActivityForResult(intent, LOCK_SCREEN_REQUEST_CODE);
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Scroll position preservation
+    // ─────────────────────────────────────────────────────────────────────
+
+    private void saveCurrentScrollPosition() {
+        switch (currentNavTab) {
+            case PROTECTED:
+                protectedScrollPosition = gridView.getFirstVisiblePosition();
+                View protectedChild = gridView.getChildAt(0);
+                protectedScrollOffset = (protectedChild == null) ? 0 : protectedChild.getTop();
+                break;
+            case ORIGINAL:
+                saveBrowseScrollPosition();
+                break;
+            case SETTINGS:
+                // No scroll to save for settings
+                break;
+        }
+    }
+
+    private void saveBrowseScrollPosition() {
+        int position = browseListView.getFirstVisiblePosition();
+        View child = browseListView.getChildAt(0);
+        int offset = (child == null) ? 0 : child.getTop();
+
+        if (browseMode == BrowseMode.DATE) {
+            browseDateScrollPosition = position;
+            browseDateScrollOffset = offset;
+        } else {
+            browseFolderScrollPosition = position;
+            browseFolderScrollOffset = offset;
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Browse list helpers
+    // ─────────────────────────────────────────────────────────────────────
+
+    /**
+     * Removes processed files from the browse adapter items without resetting scroll position.
+     */
+    private void removeProcessedFilesFromBrowse(Set<String> processedPaths) {
+        int count = browseAdapter.getCount();
+        List<FolderAdapter.BrowseItem> updatedItems = new ArrayList<>();
+
+        for (int i = 0; i < count; i++) {
+            FolderAdapter.BrowseItem item = (FolderAdapter.BrowseItem) browseAdapter.getItem(i);
+            if (item.type == FolderAdapter.TYPE_MEDIA_STRIP && item.files != null) {
+                // Filter out processed files from this strip
+                List<File> remainingFiles = new ArrayList<>();
+                List<String> remainingPaths = new ArrayList<>();
+                for (int j = 0; j < item.files.length; j++) {
+                    String path = item.files[j].getAbsolutePath();
+                    if (!processedPaths.contains(path)) {
+                        remainingFiles.add(item.files[j]);
+                        remainingPaths.add(path);
+                    }
+                }
+                // Only add strip if it still has files
+                if (!remainingFiles.isEmpty()) {
+                    item.files = remainingFiles.toArray(new File[0]);
+                    item.paths = remainingPaths.toArray(new String[0]);
+                    updatedItems.add(item);
+                } else {
+                    // Remove the preceding header too (date or folder)
+                    if (!updatedItems.isEmpty()) {
+                        FolderAdapter.BrowseItem lastItem = updatedItems.get(updatedItems.size() - 1);
+                        if (lastItem.type == FolderAdapter.TYPE_DATE_HEADER ||
+                                lastItem.type == FolderAdapter.TYPE_FOLDER_HEADER) {
+                            updatedItems.remove(updatedItems.size() - 1);
+                        }
+                    }
+                }
+            } else {
+                // Header item - add it (will be removed if its strip becomes empty)
+                updatedItems.add(item);
+            }
+        }
+
+        // Update header subtitles with new counts
+        for (int i = 0; i < updatedItems.size() - 1; i++) {
+            FolderAdapter.BrowseItem item = updatedItems.get(i);
+            if ((item.type == FolderAdapter.TYPE_DATE_HEADER ||
+                    item.type == FolderAdapter.TYPE_FOLDER_HEADER) &&
+                    i + 1 < updatedItems.size()) {
+                FolderAdapter.BrowseItem nextItem = updatedItems.get(i + 1);
+                if (nextItem.type == FolderAdapter.TYPE_MEDIA_STRIP && nextItem.files != null) {
+                    int fileCount = nextItem.files.length;
+                    item.subtitle = fileCount + " " + (fileCount == 1 ? "item" : "items");
+                    item.paths = nextItem.paths;
+                }
+            }
+        }
+
+        browseAdapter.setItems(updatedItems);
+        tvEmpty.setVisibility(updatedItems.isEmpty() ? View.VISIBLE : View.GONE);
     }
 }

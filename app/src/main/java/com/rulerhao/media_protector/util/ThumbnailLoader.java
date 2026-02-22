@@ -20,19 +20,41 @@ import java.util.concurrent.Executors;
 /**
  * Loads media thumbnails asynchronously with an LRU bitmap cache.
  *
+ * <p>This class is implemented as a singleton to share the cache and thread pool
+ * across all adapters (MediaAdapter, FolderAdapter), avoiding duplicate memory usage
+ * and thread creation.
+ *
  * <ul>
  *   <li>For encrypted files, uses {@link HeaderObfuscator#getDecryptedStream} to decode
  *       the thumbnail on-the-fly without writing a temporary file.</li>
  *   <li>Uses an {@link ImageView} tag to discard results that arrive for recycled views.</li>
- *   <li>Call {@link #destroy()} when the owning adapter/context is torn down to stop
- *       background threads and release cached bitmaps.</li>
+ *   <li>Call {@link #clearCache()} to release cached bitmaps when switching modes.</li>
  * </ul>
  */
 public class ThumbnailLoader {
 
     private static final int THREAD_COUNT = 4;
-    private static final int CACHE_SIZE   = 30; // max cached bitmaps
+    private static final int CACHE_SIZE   = 50; // increased for shared cache
 
+    // ─── Singleton ───────────────────────────────────────────────────────
+    private static volatile ThumbnailLoader instance;
+
+    public static ThumbnailLoader getInstance() {
+        if (instance == null) {
+            synchronized (ThumbnailLoader.class) {
+                if (instance == null) {
+                    instance = new ThumbnailLoader();
+                }
+            }
+        }
+        return instance;
+    }
+
+    private ThumbnailLoader() {
+        // Private constructor for singleton
+    }
+
+    // ─── Instance fields ─────────────────────────────────────────────────
     private final ExecutorService executor = Executors.newFixedThreadPool(THREAD_COUNT);
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final LruCache<String, Bitmap> cache = new LruCache<>(CACHE_SIZE);
@@ -73,9 +95,11 @@ public class ThumbnailLoader {
         });
     }
 
-    /** Shuts down the thread pool and evicts all cached bitmaps. */
-    public void destroy() {
-        executor.shutdownNow();
+    /**
+     * Clears all cached bitmaps. Call when switching modes to free memory.
+     * Does NOT shut down the executor since this is a shared singleton.
+     */
+    public void clearCache() {
         cache.evictAll();
     }
 

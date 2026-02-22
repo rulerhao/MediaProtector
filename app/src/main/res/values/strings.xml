@@ -31,6 +31,8 @@
     <string name="toast_browsing_folder">Browsing: %s</string>
     <string name="toast_no_folders_found">No folders found</string>
     <string name="toast_operation_result">Done: %1$d succeeded, %2$d failed</string>
+    <string name="toast_encrypted">File protected</string>
+    <string name="toast_decrypted">File decrypted</string>
     <string name="error_generic">An unexpected error occurred</string>
 
     <!-- Progress (shown in the action button during batch operations) -->
@@ -45,6 +47,8 @@
 
     <!-- Media Viewer -->
     <string name="btn_play_pause">Play / Pause</string>
+    <string name="btn_decrypt_single">Decrypt</string>
+    <string name="btn_encrypt_single">Protect</string>
     <string name="error_load_media">Failed to load media file</string>
 
     <!-- Mode tabs -->
@@ -77,6 +81,11 @@
 
     <!-- Security settings -->
     <string name="settings_security">Security</string>
+
+    <!-- Storage settings -->
+    <string name="settings_storage">Storage</string>
+    <string name="settings_restore_location">Restore to original location</string>
+    <string name="settings_restore_location_desc">When decrypting, restore files to their original location instead of keeping them in the protected folder</string>
     <string name="settings_pin_lock">PIN lock</string>
     <string name="settings_fingerprint">Fingerprint unlock</string>
     <string name="settings_change_pin">Change PIN</string>

@@ -44,6 +44,11 @@ public class FolderAdapter extends BaseAdapter {
         void onFileClick(String[] sectionPaths, int index);
     }
 
+    interface OnHeaderClickListener {
+        /** Called when a date or folder header is tapped. Opens section view with all files in that section. */
+        void onHeaderClick(String title, String[] sectionPaths);
+    }
+
     interface OnSelectionChangedListener {
         /** @param count number of currently selected files; 0 means selection mode exited */
         void onChanged(int count);
@@ -76,7 +81,8 @@ public class FolderAdapter extends BaseAdapter {
     private final ThumbnailLoader  loader;
     private final boolean          encrypted;
 
-    private OnFileClickListener       fileClickListener;
+    private OnFileClickListener        fileClickListener;
+    private OnHeaderClickListener      headerClickListener;
     private OnSelectionChangedListener selectionChangedListener;
 
     /** Files currently selected (by the user's long-press → tap flow). */
@@ -87,7 +93,7 @@ public class FolderAdapter extends BaseAdapter {
         this.context  = context;
         this.inflater = LayoutInflater.from(context);
         this.encrypted = encrypted;
-        this.loader   = new ThumbnailLoader();
+        this.loader   = ThumbnailLoader.getInstance();
     }
 
     public void setItems(List<BrowseItem> newItems) {
@@ -98,6 +104,10 @@ public class FolderAdapter extends BaseAdapter {
 
     public void setOnFileClickListener(OnFileClickListener l) {
         this.fileClickListener = l;
+    }
+
+    public void setOnHeaderClickListener(OnHeaderClickListener l) {
+        this.headerClickListener = l;
     }
 
     public void setOnSelectionChangedListener(OnSelectionChangedListener l) {
@@ -141,9 +151,9 @@ public class FolderAdapter extends BaseAdapter {
             selectionChangedListener.onChanged(selectedFiles.size());
     }
 
-    /** Must be called from the owning Activity's {@code onDestroy()}. */
-    public void destroy() {
-        loader.destroy();
+    /** Clears thumbnail cache. Call when switching modes to free memory. */
+    public void clearCache() {
+        loader.clearCache();
     }
 
     // ─── BaseAdapter ──────────────────────────────────────────────────────
@@ -179,6 +189,16 @@ public class FolderAdapter extends BaseAdapter {
         }
         holder.label.setText(item.title);
         holder.count.setText(item.subtitle);
+
+        // Click header to open section view with all files in this date group
+        final String title = item.title;
+        final String[] paths = item.paths;
+        convertView.setOnClickListener(v -> {
+            if (headerClickListener != null && paths != null && paths.length > 0) {
+                headerClickListener.onHeaderClick(title, paths);
+            }
+        });
+
         return convertView;
     }
 
@@ -195,6 +215,16 @@ public class FolderAdapter extends BaseAdapter {
         }
         holder.name.setText(item.title);
         holder.count.setText(item.subtitle);
+
+        // Click header to open section view with all files in this folder
+        final String title = item.title;
+        final String[] paths = item.paths;
+        convertView.setOnClickListener(v -> {
+            if (headerClickListener != null && paths != null && paths.length > 0) {
+                headerClickListener.onHeaderClick(title, paths);
+            }
+        });
+
         return convertView;
     }
 

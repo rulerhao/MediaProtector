@@ -1,5 +1,8 @@
 package com.rulerhao.media_protector.data;
 
+import android.os.Environment;
+
+import java.io.File;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -7,6 +10,12 @@ import java.util.Set;
 
 public class FileConfig {
     public static final String ENCRYPTED_EXTENSION = ".mprot";
+    public static final String PROTECTED_EXTENSION = ENCRYPTED_EXTENSION;
+
+    /** Returns the folder where protected files are stored. */
+    public static File getProtectedFolder() {
+        return new File(Environment.getExternalStorageDirectory(), ".MediaProtector");
+    }
 
     private static final Set<String> SUPPORTED_EXTENSIONS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
             ".jpg", ".jpeg", ".png", ".mp4"

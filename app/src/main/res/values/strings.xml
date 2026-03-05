@@ -71,4 +71,22 @@
     <string name="toast_fingerprint_enabled">Fingerprint unlock enabled</string>
     <string name="toast_fingerprint_disabled">Fingerprint unlock disabled</string>
     <string name="toast_fingerprint_not_available">Fingerprint not available on this device</string>
+
+    <!-- App shortcuts -->
+    <string name="shortcut_protected_short">Protected</string>
+    <string name="shortcut_protected_long">View Protected Files</string>
+    <string name="shortcut_browse_short">Browse</string>
+    <string name="shortcut_browse_long">Browse Media</string>
+
+    <!-- Widget -->
+    <string name="widget_name">MediaProtector</string>
+    <string name="widget_protected_count">%d protected</string>
+
+    <!-- Quick Settings tile -->
+    <string name="tile_label">MediaProtector</string>
+    <string name="tile_subtitle">Tap to open</string>
+
+    <!-- Share intent -->
+    <string name="toast_protecting_files">Protecting %d files...</string>
+    <string name="toast_files_protected">%d files protected</string>
 </resources>

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="open_protected"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_protected"
+        android:shortcutShortLabel="@string/shortcut_protected_short"
+        android:shortcutLongLabel="@string/shortcut_protected_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.rulerhao.media_protector"
+            android:targetClass="com.rulerhao.media_protector.MainActivity">
+            <extra android:name="shortcut_action" android:value="protected" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:shortcutId="open_browse"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_browse"
+        android:shortcutShortLabel="@string/shortcut_browse_short"
+        android:shortcutLongLabel="@string/shortcut_browse_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.rulerhao.media_protector"
+            android:targetClass="com.rulerhao.media_protector.MainActivity">
+            <extra android:name="shortcut_action" android:value="browse" />
+        </intent>
+    </shortcut>
+</shortcuts>

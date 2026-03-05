@@ -310,6 +310,25 @@ public class MainActivity extends Activity implements MainContract.View {
         }
 
         presenter.onCreate();
+
+        // Handle app shortcuts
+        handleShortcutIntent(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        handleShortcutIntent(intent);
+    }
+
+    private void handleShortcutIntent(Intent intent) {
+        if (intent == null) return;
+        String action = intent.getStringExtra("shortcut_action");
+        if ("protected".equals(action)) {
+            switchNavTab(NavTab.PROTECTED);
+        } else if ("browse".equals(action)) {
+            switchNavTab(NavTab.ORIGINAL);
+        }
     }
 
     @Override

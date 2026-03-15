@@ -6,6 +6,68 @@
     android:background="?android:attr/colorBackground">
 
 
+    <!-- ===== Search/Selection bar (visible in Protected mode) ===== -->
+    <LinearLayout
+        android:id="@+id/searchBar"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:orientation="horizontal"
+        android:background="?attr/colorSurface"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:gravity="center_vertical"
+        android:visibility="gone">
+
+        <!-- Selection count (shown when items selected) -->
+        <TextView
+            android:id="@+id/tvSelectionCount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/tab_indicator"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:layout_marginEnd="12dp"
+            android:visibility="gone" />
+
+        <EditText
+            android:id="@+id/etSearch"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:hint="@string/search_hint"
+            android:textColorHint="?android:attr/textColorSecondary"
+            android:textColor="?android:attr/textColorPrimary"
+            android:textSize="14sp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:background="@drawable/search_background"
+            android:inputType="text"
+            android:imeOptions="actionSearch"
+            android:maxLines="1" />
+
+        <ImageButton
+            android:id="@+id/btnClearSearch"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="8dp"
+            android:src="@drawable/ic_clear"
+            android:tint="?android:attr/textColorSecondary"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/btn_clear_search"
+            android:visibility="gone" />
+
+        <ImageButton
+            android:id="@+id/btnSort"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="8dp"
+            android:src="@drawable/ic_sort"
+            android:tint="?android:attr/textColorSecondary"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/btn_sort" />
+
+    </LinearLayout>
+
     <!-- ===== Browse Date / Folder sub-tabs (visible in Original mode only) ===== -->
     <LinearLayout
         android:id="@+id/browseModeBar"
@@ -67,30 +129,52 @@
 
     </LinearLayout>
 
-    <!-- ===== Content area ===== -->
-    <FrameLayout
+    <!-- ===== Content area with swipe support ===== -->
+    <com.rulerhao.media_protector.util.SwipeableTabLayout
+        android:id="@+id/swipeableContent"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1">
 
-        <!-- Protected mode: flat grid -->
-        <GridView
-            android:id="@+id/gridView"
+        <!-- Protected mode: flat grid with pull-to-refresh -->
+        <com.rulerhao.media_protector.util.PullToRefreshLayout
+            android:id="@+id/pullToRefreshProtected"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:numColumns="3"
-            android:horizontalSpacing="2dp"
-            android:verticalSpacing="2dp"
-            android:stretchMode="columnWidth" />
+            android:layout_height="match_parent">
 
-        <!-- Original mode: browse list -->
-        <ListView
-            android:id="@+id/browseListView"
+            <GridView
+                android:id="@+id/gridView"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:numColumns="3"
+                android:horizontalSpacing="2dp"
+                android:verticalSpacing="2dp"
+                android:stretchMode="columnWidth" />
+
+        </com.rulerhao.media_protector.util.PullToRefreshLayout>
+
+        <!-- Original mode: browse list with pull-to-refresh -->
+        <com.rulerhao.media_protector.util.PullToRefreshLayout
+            android:id="@+id/pullToRefreshBrowse"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:divider="?attr/colorDivider"
-            android:dividerHeight="1dp"
-            android:background="?android:attr/colorBackground"
+            android:visibility="gone">
+
+            <ListView
+                android:id="@+id/browseListView"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:divider="?attr/colorDivider"
+                android:dividerHeight="1dp"
+                android:background="?android:attr/colorBackground" />
+
+        </com.rulerhao.media_protector.util.PullToRefreshLayout>
+
+        <!-- Skeleton loading view (shimmer effect) -->
+        <com.rulerhao.media_protector.util.SkeletonView
+            android:id="@+id/skeletonView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
             android:visibility="gone" />
 
         <!-- Shared loading / empty indicators -->
@@ -101,16 +185,33 @@
             android:layout_gravity="center"
             android:visibility="gone" />
 
-        <TextView
-            android:id="@+id/tvEmpty"
+        <!-- Empty state container -->
+        <LinearLayout
+            android:id="@+id/emptyStateContainer"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
-            android:text="@string/label_no_files"
-            android:textColor="?android:attr/textColorSecondary"
-            android:textSize="16sp"
+            android:orientation="vertical"
             android:gravity="center"
-            android:visibility="gone" />
+            android:visibility="gone">
+
+            <ImageView
+                android:id="@+id/ivEmptyIcon"
+                android:layout_width="96dp"
+                android:layout_height="96dp"
+                android:src="@drawable/ic_empty_folder"
+                android:layout_marginBottom="16dp" />
+
+            <TextView
+                android:id="@+id/tvEmpty"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/label_no_files"
+                android:textColor="?android:attr/textColorSecondary"
+                android:textSize="16sp"
+                android:gravity="center" />
+
+        </LinearLayout>
 
         <!-- ===== Settings page (inside content area, hidden by default) ===== -->
         <ScrollView
@@ -272,6 +373,46 @@
                     android:background="?attr/colorDivider"
                     android:visibility="gone" />
 
+                <!-- Auto-lock timeout row -->
+                <LinearLayout
+                    android:id="@+id/autoLockRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:paddingTop="18dp"
+                    android:paddingBottom="18dp"
+                    android:background="?attr/colorSurface"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/settings_auto_lock"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:textSize="16sp" />
+
+                    <TextView
+                        android:id="@+id/tvAutoLockValue"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textColor="?android:attr/textColorSecondary"
+                        android:textSize="14sp" />
+
+                </LinearLayout>
+
+                <View
+                    android:id="@+id/autoLockDivider"
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="?attr/colorDivider"
+                    android:visibility="gone" />
+
                 <!-- Storage section header -->
                 <TextView
                     android:layout_width="match_parent"
@@ -338,7 +479,7 @@
 
         </ScrollView>
 
-    </FrameLayout>
+    </com.rulerhao.media_protector.util.SwipeableTabLayout>
 
     <!-- ===== Selection bottom bar (hidden when not selecting) ===== -->
     <LinearLayout

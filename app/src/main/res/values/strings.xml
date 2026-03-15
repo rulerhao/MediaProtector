@@ -34,6 +34,13 @@
     <string name="btn_play_pause">Play / Pause</string>
     <string name="btn_decrypt_single">Decrypt</string>
     <string name="btn_encrypt_single">Protect</string>
+    <string name="btn_info">File Info</string>
+    <string name="info_dialog_title">File Information</string>
+    <string name="info_filename">Name: %s</string>
+    <string name="info_size">Size: %s</string>
+    <string name="info_dimensions">Dimensions: %d × %d</string>
+    <string name="info_date">Modified: %s</string>
+    <string name="info_path">Path: %s</string>
     <string name="error_load_media">Failed to load media file</string>
 
 
@@ -56,6 +63,11 @@
     <string name="btn_fingerprint">Fingerprint</string>
     <string name="btn_backspace">Backspace</string>
 
+    <!-- Biometric prompt -->
+    <string name="biometric_title">Unlock MediaProtector</string>
+    <string name="biometric_subtitle">Use biometric to access your protected files</string>
+    <string name="biometric_use_pin">Use PIN</string>
+
     <!-- Security settings -->
     <string name="settings_security">Security</string>
 
@@ -71,6 +83,12 @@
     <string name="toast_fingerprint_enabled">Fingerprint unlock enabled</string>
     <string name="toast_fingerprint_disabled">Fingerprint unlock disabled</string>
     <string name="toast_fingerprint_not_available">Fingerprint not available on this device</string>
+    <string name="settings_auto_lock">Auto-lock timeout</string>
+    <string name="auto_lock_never">Never</string>
+    <string name="auto_lock_1_min">1 minute</string>
+    <string name="auto_lock_5_min">5 minutes</string>
+    <string name="auto_lock_15_min">15 minutes</string>
+    <string name="auto_lock_30_min">30 minutes</string>
 
     <!-- App shortcuts -->
     <string name="shortcut_protected_short">Protected</string>
@@ -89,4 +107,39 @@
     <!-- Share intent -->
     <string name="toast_protecting_files">Protecting %d files...</string>
     <string name="toast_files_protected">%d files protected</string>
+
+    <!-- Search -->
+    <string name="search_hint">Search files...</string>
+    <string name="btn_clear_search">Clear search</string>
+    <string name="search_no_results">No files match your search</string>
+
+    <!-- Selection -->
+    <string name="selection_count">%d selected</string>
+    <string name="confirm_discard_selection_title">Discard selection?</string>
+    <string name="confirm_discard_selection_message">You have %d files selected. Going back will discard your selection.</string>
+    <string name="btn_discard">Discard</string>
+
+    <!-- Sort options -->
+    <string name="btn_sort">Sort</string>
+    <string name="sort_name_asc">Name (A-Z)</string>
+    <string name="sort_name_desc">Name (Z-A)</string>
+    <string name="sort_date_asc">Date (Oldest)</string>
+    <string name="sort_date_desc">Date (Newest)</string>
+    <string name="sort_size_asc">Size (Smallest)</string>
+    <string name="sort_size_desc">Size (Largest)</string>
+
+    <!-- Albums -->
+    <string name="album_all">All</string>
+    <string name="album_create">New Album</string>
+    <string name="album_create_title">Create Album</string>
+    <string name="album_name_hint">Album name</string>
+    <string name="album_created">Album created</string>
+    <string name="album_exists">Album already exists</string>
+    <string name="album_move_to">Move to Album</string>
+    <string name="album_moved">Moved to %s</string>
+    <string name="album_delete">Delete Album</string>
+    <string name="album_deleted">Album deleted</string>
+    <string name="btn_cancel">Cancel</string>
+    <string name="btn_create">Create</string>
+    <string name="btn_ok">OK</string>
 </resources>

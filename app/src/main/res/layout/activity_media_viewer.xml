@@ -4,17 +4,16 @@
     android:layout_height="match_parent"
     android:background="#000000">
 
-    <!-- Image display -->
-    <ImageView
+    <!-- Image display with pinch-to-zoom -->
+    <com.rulerhao.media_protector.util.ZoomableImageView
         android:id="@+id/imageView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:scaleType="fitCenter"
         android:visibility="gone" />
 
-    <!-- Video surface -->
-    <SurfaceView
-        android:id="@+id/surfaceView"
+    <!-- Video surface with pinch-to-zoom -->
+    <com.rulerhao.media_protector.util.ZoomableTextureView
+        android:id="@+id/textureView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:visibility="gone" />
@@ -51,6 +50,17 @@
             android:textSize="15sp"
             android:ellipsize="middle"
             android:singleLine="true" />
+
+        <!-- Info button -->
+        <ImageButton
+            android:id="@+id/btnInfo"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginEnd="8dp"
+            android:src="@drawable/ic_info"
+            android:tint="@color/white"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/btn_info" />
 
         <!-- Encrypt/Decrypt button -->
         <Button

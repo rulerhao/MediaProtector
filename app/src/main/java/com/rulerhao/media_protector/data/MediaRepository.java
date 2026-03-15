@@ -12,9 +12,38 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+/**
+ * Repository for scanning and processing media files.
+ *
+ * <h3>Folder Depth Limitation</h3>
+ * <p>File scanning is limited to <strong>3 levels deep</strong> from the root directory.
+ * This limitation exists for the following reasons:</p>
+ * <ul>
+ *   <li><b>Performance:</b> Unlimited recursion on external storage can cause ANRs
+ *       when scanning directories with thousands of nested folders (e.g., app caches,
+ *       downloaded archives, project folders).</li>
+ *   <li><b>Memory:</b> Deep recursion can exhaust stack space and create large file
+ *       lists that exceed available heap memory.</li>
+ *   <li><b>User Experience:</b> Most user media resides within 3 levels of the storage
+ *       root (DCIM/Camera, Pictures, Downloads, etc.).</li>
+ *   <li><b>Battery:</b> Reducing file system traversal saves CPU cycles and battery.</li>
+ * </ul>
+ *
+ * <p>If you need to scan deeper, increase {@code MAX_DEPTH} in {@link #traverse},
+ * but consider adding a timeout or progress callback for cancellation support.</p>
+ *
+ * @see #traverse(File, FileVisitor, int)
+ */
 public class MediaRepository {
 
     private static final String TAG = "MediaRepository";
+    /**
+     * Maximum folder depth for recursive file scanning.
+     * Depth 0 = root directory, Depth 3 = 3 levels below root.
+     *
+     * @see #traverse(File, FileVisitor, int)
+     */
+    private static final int MAX_DEPTH = 3;
     private final Context context;
 
     // System folders to skip during recursive search
@@ -48,7 +77,7 @@ public class MediaRepository {
     }
 
     public interface OperationCallback {
-        void onProgress(int done, int total);
+        void onProgress(int done, int total, String currentFileName, long bytesProcessed, long bytesTotal);
         void onComplete(int succeeded, int failed);
     }
 
@@ -125,6 +154,13 @@ public class MediaRepository {
             int failed = 0;
             int total = files.size();
 
+            // Calculate total bytes for progress reporting
+            long bytesTotal = 0;
+            for (File file : files) {
+                bytesTotal += file.length();
+            }
+            long bytesProcessed = 0;
+
             // For export: ensure destination folder exists
             if (op == Operation.EXPORT && destFolder != null && !destFolder.exists()) {
                 destFolder.mkdirs();
@@ -132,6 +168,13 @@ public class MediaRepository {
 
             for (int i = 0; i < total; i++) {
                 File file = files.get(i);
+                long fileSize = file.length();
+                String fileName = file.getName();
+                // For encrypted files, show the original name
+                if (op == Operation.DECRYPT || op == Operation.EXPORT) {
+                    fileName = HeaderObfuscator.getOriginalName(file);
+                }
+                callback.onProgress(i + 1, total, fileName, bytesProcessed, bytesTotal);
                 try {
                     switch (op) {
                         case ENCRYPT:
@@ -145,11 +188,12 @@ public class MediaRepository {
                             break;
                     }
                     succeeded++;
+                    bytesProcessed += fileSize;
                 } catch (Exception e) {
                     Log.e(TAG, "Failed to " + op.name().toLowerCase() + ": " + file, e);
                     failed++;
+                    bytesProcessed += fileSize; // Count failed file size too for accurate progress
                 }
-                callback.onProgress(i + 1, total);
             }
             callback.onComplete(succeeded, failed);
         });
@@ -274,12 +318,21 @@ public class MediaRepository {
     // -------------------------------------------------------------------------
 
     /**
-     * Traverses {@code dir} recursively up to 3 levels deep using {@link File#listFiles()}.
-     * Calls {@code visitor.visit(file)} for every regular file found.
-     * If the visitor returns {@code false}, traversal stops immediately.
+     * Traverses {@code dir} recursively up to {@link #MAX_DEPTH} levels deep.
+     *
+     * <p>Uses {@link File#listFiles()} for directory enumeration. Calls
+     * {@code visitor.visit(file)} for every regular file found. If the visitor
+     * returns {@code false}, traversal stops immediately (early exit).</p>
+     *
+     * <p><b>Depth limit rationale:</b> See class-level Javadoc for details on why
+     * recursion is limited to 3 levels.</p>
+     *
+     * @param dir     the directory to traverse
+     * @param visitor callback invoked for each file; return false to stop
+     * @param depth   current recursion depth (0 = root)
      */
     private void traverse(File dir, FileVisitor visitor, int depth) {
-        if (depth > 3) return;
+        if (depth > MAX_DEPTH) return;
         if (dir == null || !dir.isDirectory() || !dir.canRead()) return;
         if (isSystemFolder(dir)) return;
 

@@ -2,7 +2,7 @@ package com.rulerhao.media_protector;
 
 import android.app.Activity;
 import android.content.Intent;
-import android.hardware.fingerprint.FingerprintManager;
+import android.hardware.biometrics.BiometricPrompt;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.CancellationSignal;
@@ -232,14 +232,87 @@ public class LockScreenActivity extends Activity {
         tvError.setVisibility(View.VISIBLE);
     }
 
-    @SuppressWarnings("deprecation")
     private void startFingerprintAuth() {
         if (fingerprintListening) return;
+
+        // Use BiometricPrompt on Android 9+ (API 28+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            startBiometricAuth();
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            startLegacyFingerprintAuth();
+        }
+    }
+
+    /**
+     * Modern biometric authentication using BiometricPrompt (Android 9+).
+     * Supports fingerprint, face, and other biometrics with system UI.
+     */
+    private void startBiometricAuth() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return;
+
+        try {
+            fingerprintCancellationSignal = new CancellationSignal();
+            fingerprintListening = true;
+
+            BiometricPrompt.Builder builder = new BiometricPrompt.Builder(this)
+                    .setTitle(getString(R.string.biometric_title))
+                    .setSubtitle(getString(R.string.biometric_subtitle))
+                    .setNegativeButton(
+                            getString(R.string.biometric_use_pin),
+                            getMainExecutor(),
+                            (dialog, which) -> {
+                                fingerprintListening = false;
+                                // User chose to use PIN instead
+                            }
+                    );
+
+            // Allow device credential as fallback on Android 11+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                // On Android 11+, we use setNegativeButton for "Use PIN" option
+                // Device credential would bypass our PIN, so we don't use it
+            }
+
+            BiometricPrompt biometricPrompt = builder.build();
+
+            biometricPrompt.authenticate(
+                    fingerprintCancellationSignal,
+                    getMainExecutor(),
+                    new BiometricPrompt.AuthenticationCallback() {
+                        @Override
+                        public void onAuthenticationSucceeded(
+                                BiometricPrompt.AuthenticationResult result) {
+                            fingerprintListening = false;
+                            onAuthSuccess();
+                        }
+
+                        @Override
+                        public void onAuthenticationFailed() {
+                            // Don't show error, user can retry
+                        }
+
+                        @Override
+                        public void onAuthenticationError(int errorCode, CharSequence errString) {
+                            fingerprintListening = false;
+                            // Silently handle errors - user can still use PIN
+                        }
+                    }
+            );
+        } catch (Exception e) {
+            fingerprintListening = false;
+        }
+    }
+
+    /**
+     * Legacy fingerprint authentication for Android 6-8.
+     */
+    @SuppressWarnings("deprecation")
+    private void startLegacyFingerprintAuth() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return;
 
         try {
-            FingerprintManager fingerprintManager =
-                    (FingerprintManager) getSystemService(FINGERPRINT_SERVICE);
+            android.hardware.fingerprint.FingerprintManager fingerprintManager =
+                    (android.hardware.fingerprint.FingerprintManager)
+                            getSystemService(FINGERPRINT_SERVICE);
             if (fingerprintManager == null || !fingerprintManager.isHardwareDetected()) {
                 return;
             }
@@ -251,10 +324,11 @@ public class LockScreenActivity extends Activity {
                     null, // CryptoObject
                     fingerprintCancellationSignal,
                     0, // flags
-                    new FingerprintManager.AuthenticationCallback() {
+                    new android.hardware.fingerprint.FingerprintManager.AuthenticationCallback() {
                         @Override
                         public void onAuthenticationSucceeded(
-                                FingerprintManager.AuthenticationResult result) {
+                                android.hardware.fingerprint.FingerprintManager
+                                        .AuthenticationResult result) {
                             fingerprintListening = false;
                             onAuthSuccess();
                         }

@@ -24,14 +24,27 @@ import com.rulerhao.media_protector.data.MediaRepository;
 import com.rulerhao.media_protector.ui.MainContract;
 import com.rulerhao.media_protector.ui.MainPresenter;
 import com.rulerhao.media_protector.util.OriginalPathStore;
+import com.rulerhao.media_protector.util.PreviewPopup;
+import com.rulerhao.media_protector.util.PullToRefreshLayout;
 import com.rulerhao.media_protector.util.SecurityHelper;
+import com.rulerhao.media_protector.util.SkeletonView;
+import com.rulerhao.media_protector.util.SwipeableTabLayout;
 import com.rulerhao.media_protector.util.ThemeHelper;
+import com.rulerhao.media_protector.util.ThumbnailLoader;
 
 import java.io.File;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+
+import android.text.Editable;
+import android.text.TextWatcher;
+import android.view.MotionEvent;
+import android.widget.EditText;
+import android.widget.ImageButton;
+
+import com.rulerhao.media_protector.crypto.HeaderObfuscator;
 
 public class MainActivity extends Activity implements MainContract.View {
 
@@ -40,6 +53,14 @@ public class MainActivity extends Activity implements MainContract.View {
     private MediaAdapter adapter;
     private MainContract.Presenter presenter;
 
+    // ─── Search ──────────────────────────────────────────────────────────
+    private View        searchBar;
+    private EditText    etSearch;
+    private ImageButton btnClearSearch;
+    private TextView    tvSelectionCount;
+    private List<File>  allProtectedFiles = new ArrayList<>();
+    private String      currentSearchQuery = "";
+
     // ─── Mode state ──────────────────────────────────────────────────────
     private boolean showEncrypted     = true;
 
@@ -47,9 +68,11 @@ public class MainActivity extends Activity implements MainContract.View {
     private enum BrowseMode { DATE, FOLDER }
     private BrowseMode   browseMode = BrowseMode.DATE;
 
-    private ListView      browseListView;
-    private FolderAdapter browseAdapter;
-    private ProgressBar   browseProgressBar;
+    private ListView           browseListView;
+    private FolderAdapter      browseAdapter;
+    private ProgressBar        browseProgressBar;
+    private PullToRefreshLayout pullToRefreshProtected;
+    private PullToRefreshLayout pullToRefreshBrowse;
 
     private View   browseModeBar;
     private Button btnBrowseModeDate;
@@ -74,11 +97,15 @@ public class MainActivity extends Activity implements MainContract.View {
     private View   fingerprintDivider;
     private View   changePinRow;
     private View   changePinDivider;
+    private View   autoLockRow;
+    private View   autoLockDivider;
+    private TextView tvAutoLockValue;
     private Switch switchRestoreLocation;
 
     // ─── Current navigation tab ──────────────────────────────────────────
     private enum NavTab { PROTECTED, ORIGINAL, SETTINGS }
     private NavTab currentNavTab = NavTab.PROTECTED;
+    private SwipeableTabLayout swipeableContent;
 
     // ─── Selection bar (shared across modes) ──────────────────────────────
     private View   selectionBar;
@@ -87,7 +114,9 @@ public class MainActivity extends Activity implements MainContract.View {
     private Button btnEncrypt;
 
     // ─── Empty / progress ─────────────────────────────────────────────────
-    private TextView tvEmpty;
+    private View         emptyStateContainer;
+    private TextView     tvEmpty;
+    private SkeletonView skeletonView;
 
     /** True when one or more files are selected in grid mode. */
     private boolean gridSelectionActive = false;
@@ -113,6 +142,19 @@ public class MainActivity extends Activity implements MainContract.View {
     private int browseFolderScrollPosition = 0;
     private int browseFolderScrollOffset = 0;
 
+    // ─── Multi-select drag ────────────────────────────────────────────────
+    private boolean isDraggingToSelect = false;
+    private int lastDragPosition = -1;
+    private boolean dragSelectMode = true; // true = selecting, false = deselecting
+
+    // ─── Long-press preview ──────────────────────────────────────────────
+    private PreviewPopup previewPopup;
+
+    // ─── Sort options ────────────────────────────────────────────────────
+    private enum SortOption { NAME_ASC, NAME_DESC, DATE_ASC, DATE_DESC, SIZE_ASC, SIZE_DESC }
+    private SortOption currentSortOption = SortOption.DATE_DESC;
+    private ImageButton btnSort;
+
     // ─────────────────────────────────────────────────────────────────────
     // Lifecycle
     // ─────────────────────────────────────────────────────────────────────
@@ -124,24 +166,41 @@ public class MainActivity extends Activity implements MainContract.View {
         ThemeHelper.applyTheme(this);
         setContentView(R.layout.activity_main);
 
+        // Initialize thumbnail loader with screen-adaptive sizing
+        ThumbnailLoader.init(this);
+
+        // Initialize preview popup
+        previewPopup = new PreviewPopup(this);
+
         // Protected-mode views
         gridView = findViewById(R.id.gridView);
 
+        // Search bar
+        searchBar        = findViewById(R.id.searchBar);
+        etSearch         = findViewById(R.id.etSearch);
+        btnClearSearch   = findViewById(R.id.btnClearSearch);
+        btnSort          = findViewById(R.id.btnSort);
+        tvSelectionCount = findViewById(R.id.tvSelectionCount);
+
         // Browse-mode views
-        browseListView        = findViewById(R.id.browseListView);
-        browseProgressBar     = findViewById(R.id.browseProgressBar);
-        browseModeBar         = findViewById(R.id.browseModeBar);
+        browseListView         = findViewById(R.id.browseListView);
+        browseProgressBar      = findViewById(R.id.browseProgressBar);
+        browseModeBar          = findViewById(R.id.browseModeBar);
+        pullToRefreshProtected = findViewById(R.id.pullToRefreshProtected);
+        pullToRefreshBrowse    = findViewById(R.id.pullToRefreshBrowse);
         btnBrowseModeDate     = findViewById(R.id.btnBrowseModeDate);
         btnBrowseModeFolder   = findViewById(R.id.btnBrowseModeFolder);
         indicatorBrowseDate   = findViewById(R.id.indicatorBrowseDate);
         indicatorBrowseFolder = findViewById(R.id.indicatorBrowseFolder);
 
         // Shared
-        selectionBar  = findViewById(R.id.selectionBar);
-        btnSelectAll  = findViewById(R.id.btnSelectAll);
-        btnExport     = findViewById(R.id.btnExport);
-        btnEncrypt    = findViewById(R.id.btnEncrypt);
-        tvEmpty       = findViewById(R.id.tvEmpty);
+        selectionBar        = findViewById(R.id.selectionBar);
+        btnSelectAll        = findViewById(R.id.btnSelectAll);
+        btnExport           = findViewById(R.id.btnExport);
+        btnEncrypt          = findViewById(R.id.btnEncrypt);
+        emptyStateContainer = findViewById(R.id.emptyStateContainer);
+        tvEmpty             = findViewById(R.id.tvEmpty);
+        skeletonView        = findViewById(R.id.skeletonView);
 
         // Bottom navigation bar
         navProtected     = findViewById(R.id.navProtected);
@@ -153,6 +212,7 @@ public class MainActivity extends Activity implements MainContract.View {
 
         // Settings page
         settingsPage      = findViewById(R.id.settingsPage);
+        swipeableContent  = findViewById(R.id.swipeableContent);
         switchDarkMode    = findViewById(R.id.switchDarkMode);
         switchPinLock     = findViewById(R.id.switchPinLock);
         switchFingerprint = findViewById(R.id.switchFingerprint);
@@ -160,6 +220,9 @@ public class MainActivity extends Activity implements MainContract.View {
         fingerprintDivider = findViewById(R.id.fingerprintDivider);
         changePinRow      = findViewById(R.id.changePinRow);
         changePinDivider  = findViewById(R.id.changePinDivider);
+        autoLockRow       = findViewById(R.id.autoLockRow);
+        autoLockDivider   = findViewById(R.id.autoLockDivider);
+        tvAutoLockValue   = findViewById(R.id.tvAutoLockValue);
         switchRestoreLocation = findViewById(R.id.switchRestoreLocation);
 
         // Adapters / presenter
@@ -170,6 +233,37 @@ public class MainActivity extends Activity implements MainContract.View {
         browseListView.setAdapter(browseAdapter);
 
         presenter = new MainPresenter(this, new MediaRepository(this));
+
+        // ── Pull-to-refresh ──────────────────────────────────────────────
+        pullToRefreshProtected.setOnRefreshListener(() -> {
+            presenter.switchMode(true); // Refresh protected files
+        });
+        pullToRefreshBrowse.setOnRefreshListener(() -> {
+            presenter.switchMode(false); // Refresh browse files
+        });
+
+        // ── Swipe between tabs ───────────────────────────────────────────
+        swipeableContent.setOnSwipeListener(new SwipeableTabLayout.OnSwipeListener() {
+            @Override
+            public void onSwipeLeft() {
+                // Swipe left = go to next tab
+                if (currentNavTab == NavTab.PROTECTED) {
+                    switchNavTab(NavTab.ORIGINAL);
+                } else if (currentNavTab == NavTab.ORIGINAL) {
+                    switchNavTab(NavTab.SETTINGS);
+                }
+            }
+
+            @Override
+            public void onSwipeRight() {
+                // Swipe right = go to previous tab
+                if (currentNavTab == NavTab.SETTINGS) {
+                    switchNavTab(NavTab.ORIGINAL);
+                } else if (currentNavTab == NavTab.ORIGINAL) {
+                    switchNavTab(NavTab.PROTECTED);
+                }
+            }
+        });
 
         // ── Bottom navigation bar ────────────────────────────────────────
         navProtected.setOnClickListener(v -> switchNavTab(NavTab.PROTECTED));
@@ -194,6 +288,31 @@ public class MainActivity extends Activity implements MainContract.View {
             OriginalPathStore.setRestoreToOriginalEnabled(this, isChecked);
         });
 
+        // ── Search bar ──────────────────────────────────────────────────────
+        etSearch.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                currentSearchQuery = s.toString().trim().toLowerCase();
+                btnClearSearch.setVisibility(currentSearchQuery.isEmpty() ? View.GONE : View.VISIBLE);
+                filterProtectedFiles();
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {}
+        });
+
+        btnClearSearch.setOnClickListener(v -> {
+            etSearch.setText("");
+            currentSearchQuery = "";
+            filterProtectedFiles();
+        });
+
+        // ── Sort button ──────────────────────────────────────────────────
+        btnSort.setOnClickListener(v -> showSortDialog());
+
         // ── Browse sub-tabs ──────────────────────────────────────────────
         btnBrowseModeDate.setOnClickListener(v   -> switchBrowseMode(BrowseMode.DATE));
         btnBrowseModeFolder.setOnClickListener(v -> switchBrowseMode(BrowseMode.FOLDER));
@@ -211,8 +330,63 @@ public class MainActivity extends Activity implements MainContract.View {
 
         gridView.setOnItemLongClickListener((parent, view, position, id) -> {
             Object item = adapter.getItem(position);
-            if (item instanceof File) presenter.toggleSelection((File) item);
+            if (item instanceof File) {
+                File file = (File) item;
+                if (gridSelectionActive) {
+                    // Already in selection mode - start drag-to-select
+                    Set<File> currentSelection = ((MainPresenter) presenter).getSelectedFiles();
+                    dragSelectMode = !currentSelection.contains(file);
+                    isDraggingToSelect = true;
+                    lastDragPosition = position;
+                    presenter.toggleSelection(file);
+                } else {
+                    // Not in selection mode - show preview popup
+                    previewPopup.show(view, file, showEncrypted);
+                }
+            }
             return true;
+        });
+
+        // Multi-select drag touch listener
+        gridView.setOnTouchListener((v, event) -> {
+            if (!gridSelectionActive && !isDraggingToSelect) {
+                return false; // Let normal touch handling occur
+            }
+
+            switch (event.getAction()) {
+                case MotionEvent.ACTION_MOVE:
+                    if (isDraggingToSelect) {
+                        int position = gridView.pointToPosition((int) event.getX(), (int) event.getY());
+                        if (position != GridView.INVALID_POSITION && position != lastDragPosition) {
+                            Object item = adapter.getItem(position);
+                            if (item instanceof File) {
+                                File file = (File) item;
+                                Set<File> currentSelection = ((MainPresenter) presenter).getSelectedFiles();
+                                boolean isSelected = currentSelection.contains(file);
+                                // Select or deselect based on initial drag mode
+                                if (dragSelectMode && !isSelected) {
+                                    presenter.toggleSelection(file);
+                                } else if (!dragSelectMode && isSelected) {
+                                    presenter.toggleSelection(file);
+                                }
+                            }
+                            lastDragPosition = position;
+                        }
+                        return true;
+                    }
+                    break;
+
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    isDraggingToSelect = false;
+                    lastDragPosition = -1;
+                    // Dismiss preview popup if showing
+                    if (previewPopup.isShowing()) {
+                        previewPopup.dismiss();
+                    }
+                    break;
+            }
+            return false;
         });
 
         // ── Browse folder-header click: return folder path to caller ──────
@@ -335,14 +509,66 @@ public class MainActivity extends Activity implements MainContract.View {
     protected void onResume() {
         super.onResume();
         if (ThemeHelper.isDarkMode(this) != appliedDark) recreate();
+
+        // Check if we should lock due to timeout
+        if (isAuthenticated && SecurityHelper.shouldLockDueToTimeout(this)) {
+            isAuthenticated = false;
+            checkLockScreen();
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // Update last activity time for auto-lock
+        if (isAuthenticated) {
+            SecurityHelper.updateLastActivityTime(this);
+        }
     }
 
     @Override
     protected void onDestroy() {
         // Note: ThumbnailLoader is a singleton, no need to clear cache on destroy.
         // The cache persists across activity recreations (e.g., theme change).
+        if (previewPopup != null) {
+            previewPopup.destroy();
+        }
         presenter.onDestroy();
         super.onDestroy();
+    }
+
+    @Override
+    public void onBackPressed() {
+        // If in selection mode, confirm before discarding selection
+        if (gridSelectionActive && showEncrypted) {
+            int count = ((MainPresenter) presenter).getSelectedFiles().size();
+            if (count > 0) {
+                new android.app.AlertDialog.Builder(this)
+                        .setTitle(R.string.confirm_discard_selection_title)
+                        .setMessage(getString(R.string.confirm_discard_selection_message, count))
+                        .setPositiveButton(R.string.btn_discard, (dialog, which) -> {
+                            presenter.deselectAll();
+                        })
+                        .setNegativeButton(R.string.btn_cancel, null)
+                        .show();
+                return;
+            }
+        }
+        // If in browse selection mode
+        if (!showEncrypted && !browseAdapter.getSelectedFiles().isEmpty()) {
+            int count = browseAdapter.getSelectedFiles().size();
+            new android.app.AlertDialog.Builder(this)
+                    .setTitle(R.string.confirm_discard_selection_title)
+                    .setMessage(getString(R.string.confirm_discard_selection_message, count))
+                    .setPositiveButton(R.string.btn_discard, (dialog, which) -> {
+                        browseAdapter.clearSelection();
+                        selectionBar.setVisibility(View.GONE);
+                    })
+                    .setNegativeButton(R.string.btn_cancel, null)
+                    .show();
+            return;
+        }
+        super.onBackPressed();
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -351,10 +577,16 @@ public class MainActivity extends Activity implements MainContract.View {
 
     @Override
     public void showFiles(List<File> files) {
+        // Stop refresh indicators and skeleton
+        pullToRefreshProtected.setRefreshing(false);
+        pullToRefreshBrowse.setRefreshing(false);
+        skeletonView.setVisibility(View.GONE);
+        skeletonView.stopShimmer();
+
         if (showEncrypted) {
-            // Protected mode: populate grid
-            adapter.setFiles(files);
-            tvEmpty.setVisibility(files.isEmpty() ? View.VISIBLE : View.GONE);
+            // Protected mode: store all files and apply filter
+            allProtectedFiles = new ArrayList<>(files);
+            filterProtectedFiles();
             if (!files.isEmpty()) {
                 Toast.makeText(this,
                         getString(R.string.toast_found_files, files.size()),
@@ -372,7 +604,7 @@ public class MainActivity extends Activity implements MainContract.View {
                             ? BrowseListBuilder.buildDateItems(files)
                             : BrowseListBuilder.buildFolderItems(files);
             browseAdapter.setItems(items);
-            tvEmpty.setVisibility(items.isEmpty() ? View.VISIBLE : View.GONE);
+            showEmptyState(items.isEmpty(), R.string.label_no_files);
             // Restore scroll position
             browseListView.post(() -> {
                 if (browseMode == BrowseMode.DATE) {
@@ -399,6 +631,8 @@ public class MainActivity extends Activity implements MainContract.View {
     @Override
     public void showOperationResult(int succeeded, int failed) {
         btnEncrypt.setEnabled(true);
+        // Clear the filename display
+        showEmptyState(false, "");
         Toast.makeText(this,
                 getString(R.string.toast_operation_result, succeeded, failed),
                 Toast.LENGTH_SHORT).show();
@@ -414,16 +648,39 @@ public class MainActivity extends Activity implements MainContract.View {
     }
 
     @Override
-    public void showProgress(int done, int total, boolean encrypting) {
+    public void showProgress(int done, int total, boolean encrypting, String currentFileName,
+                             long bytesProcessed, long bytesTotal) {
         btnEncrypt.setEnabled(false);
         btnEncrypt.setText(getString(
                 encrypting ? R.string.progress_encrypting : R.string.progress_decrypting,
                 done, total));
+        // Show current file being processed with byte progress
+        if (currentFileName != null && total > 1) {
+            // Truncate long filenames
+            String displayName = currentFileName.length() > 25
+                    ? currentFileName.substring(0, 22) + "..."
+                    : currentFileName;
+            // Format bytes progress
+            String byteProgress = formatBytes(bytesProcessed) + " / " + formatBytes(bytesTotal);
+            showEmptyState(true, displayName + "\n" + byteProgress);
+        }
+    }
+
+    /**
+     * Formats bytes to human-readable string (KB, MB, GB).
+     */
+    private String formatBytes(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024 * 1024) return String.format("%.1f KB", bytes / 1024.0);
+        if (bytes < 1024 * 1024 * 1024) return String.format("%.1f MB", bytes / (1024.0 * 1024));
+        return String.format("%.2f GB", bytes / (1024.0 * 1024 * 1024));
     }
 
     @Override
     public void showExportResult(int succeeded, int failed, String folderName) {
         btnExport.setEnabled(true);
+        // Clear the filename display
+        showEmptyState(false, "");
         if (failed == 0) {
             Toast.makeText(this,
                     getString(R.string.toast_export_complete, succeeded, folderName),
@@ -436,9 +693,19 @@ public class MainActivity extends Activity implements MainContract.View {
     }
 
     @Override
-    public void showExportProgress(int done, int total) {
+    public void showExportProgress(int done, int total, String currentFileName,
+                                   long bytesProcessed, long bytesTotal) {
         btnExport.setEnabled(false);
         btnExport.setText(getString(R.string.progress_exporting, done, total));
+        // Show current file being exported with byte progress
+        if (currentFileName != null && total > 1) {
+            String displayName = currentFileName.length() > 25
+                    ? currentFileName.substring(0, 22) + "..."
+                    : currentFileName;
+            // Format bytes progress
+            String byteProgress = formatBytes(bytesProcessed) + " / " + formatBytes(bytesTotal);
+            showEmptyState(true, displayName + "\n" + byteProgress);
+        }
     }
 
     @Override
@@ -479,6 +746,14 @@ public class MainActivity extends Activity implements MainContract.View {
 
         // Show export button only in Protected mode
         btnExport.setVisibility(showEncrypted ? View.VISIBLE : View.GONE);
+
+        // Show selection count in toolbar
+        if (enabled && count > 0) {
+            tvSelectionCount.setVisibility(View.VISIBLE);
+            tvSelectionCount.setText(getString(R.string.selection_count, count));
+        } else {
+            tvSelectionCount.setVisibility(View.GONE);
+        }
 
         if (presenter instanceof MainPresenter) {
             adapter.updateSelection(((MainPresenter) presenter).getSelectedFiles());
@@ -619,19 +894,26 @@ public class MainActivity extends Activity implements MainContract.View {
         updateNavBarUI();
 
         // Hide all content first
-        gridView.setVisibility(View.GONE);
-        browseListView.setVisibility(View.GONE);
+        pullToRefreshProtected.setVisibility(View.GONE);
+        pullToRefreshBrowse.setVisibility(View.GONE);
         browseModeBar.setVisibility(View.GONE);
         browseProgressBar.setVisibility(View.GONE);
         settingsPage.setVisibility(View.GONE);
         selectionBar.setVisibility(View.GONE);
-        tvEmpty.setVisibility(View.GONE);
+        searchBar.setVisibility(View.GONE);
+        skeletonView.setVisibility(View.GONE);
+        showEmptyState(false, "");
 
         switch (tab) {
             case PROTECTED:
                 showEncrypted = true;
                 adapter.setShowEncrypted(true);
-                gridView.setVisibility(View.VISIBLE);
+                pullToRefreshProtected.setVisibility(View.VISIBLE);
+                searchBar.setVisibility(View.VISIBLE);
+                // Show skeleton while loading
+                if (allProtectedFiles.isEmpty()) {
+                    skeletonView.setVisibility(View.VISIBLE);
+                }
                 browseAdapter.clearSelection();
                 presenter.switchMode(true);
                 // Restore scroll position after data loads
@@ -641,7 +923,7 @@ public class MainActivity extends Activity implements MainContract.View {
             case ORIGINAL:
                 showEncrypted = false;
                 adapter.setShowEncrypted(false);
-                browseListView.setVisibility(View.VISIBLE);
+                pullToRefreshBrowse.setVisibility(View.VISIBLE);
                 browseModeBar.setVisibility(View.VISIBLE);
                 browseProgressBar.setVisibility(View.VISIBLE);
                 browseAdapter.setItems(new ArrayList<>());
@@ -727,8 +1009,109 @@ public class MainActivity extends Activity implements MainContract.View {
             startActivityForResult(intent, PIN_CHANGE_REQUEST_CODE);
         });
 
+        // Auto-lock timeout row click
+        autoLockRow.setOnClickListener(v -> showAutoLockTimeoutDialog());
+
         // Initial state
         refreshSecuritySettingsUI();
+    }
+
+    private void showAutoLockTimeoutDialog() {
+        String[] labels = {
+            getString(R.string.auto_lock_never),
+            getString(R.string.auto_lock_1_min),
+            getString(R.string.auto_lock_5_min),
+            getString(R.string.auto_lock_15_min),
+            getString(R.string.auto_lock_30_min)
+        };
+
+        int currentTimeout = SecurityHelper.getAutoLockTimeout(this);
+        int selectedIndex = 0;
+        for (int i = 0; i < SecurityHelper.TIMEOUT_OPTIONS.length; i++) {
+            if (SecurityHelper.TIMEOUT_OPTIONS[i] == currentTimeout) {
+                selectedIndex = i;
+                break;
+            }
+        }
+
+        new android.app.AlertDialog.Builder(this)
+                .setTitle(R.string.settings_auto_lock)
+                .setSingleChoiceItems(labels, selectedIndex, (dialog, which) -> {
+                    SecurityHelper.setAutoLockTimeout(this, SecurityHelper.TIMEOUT_OPTIONS[which]);
+                    tvAutoLockValue.setText(labels[which]);
+                    dialog.dismiss();
+                })
+                .setNegativeButton(R.string.btn_cancel, null)
+                .show();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Sort dialog
+    // ─────────────────────────────────────────────────────────────────────
+
+    private void showSortDialog() {
+        String[] labels = {
+            getString(R.string.sort_name_asc),
+            getString(R.string.sort_name_desc),
+            getString(R.string.sort_date_desc),
+            getString(R.string.sort_date_asc),
+            getString(R.string.sort_size_asc),
+            getString(R.string.sort_size_desc)
+        };
+
+        SortOption[] options = {
+            SortOption.NAME_ASC,
+            SortOption.NAME_DESC,
+            SortOption.DATE_DESC,
+            SortOption.DATE_ASC,
+            SortOption.SIZE_ASC,
+            SortOption.SIZE_DESC
+        };
+
+        int selectedIndex = 0;
+        for (int i = 0; i < options.length; i++) {
+            if (options[i] == currentSortOption) {
+                selectedIndex = i;
+                break;
+            }
+        }
+
+        new android.app.AlertDialog.Builder(this)
+                .setTitle(R.string.btn_sort)
+                .setSingleChoiceItems(labels, selectedIndex, (dialog, which) -> {
+                    currentSortOption = options[which];
+                    sortAndDisplayFiles();
+                    dialog.dismiss();
+                })
+                .setNegativeButton(R.string.btn_cancel, null)
+                .show();
+    }
+
+    private void sortAndDisplayFiles() {
+        if (allProtectedFiles.isEmpty()) return;
+
+        java.util.Collections.sort(allProtectedFiles, (f1, f2) -> {
+            switch (currentSortOption) {
+                case NAME_ASC:
+                    return HeaderObfuscator.getOriginalName(f1)
+                            .compareToIgnoreCase(HeaderObfuscator.getOriginalName(f2));
+                case NAME_DESC:
+                    return HeaderObfuscator.getOriginalName(f2)
+                            .compareToIgnoreCase(HeaderObfuscator.getOriginalName(f1));
+                case DATE_ASC:
+                    return Long.compare(f1.lastModified(), f2.lastModified());
+                case DATE_DESC:
+                    return Long.compare(f2.lastModified(), f1.lastModified());
+                case SIZE_ASC:
+                    return Long.compare(f1.length(), f2.length());
+                case SIZE_DESC:
+                    return Long.compare(f2.length(), f1.length());
+                default:
+                    return 0;
+            }
+        });
+
+        filterProtectedFiles();
     }
 
     private void refreshSecuritySettingsUI() {
@@ -768,6 +1151,17 @@ public class MainActivity extends Activity implements MainContract.View {
             changePinRow.setVisibility(View.GONE);
             changePinDivider.setVisibility(View.GONE);
         }
+
+        // Show/hide auto-lock timeout option
+        if (pinEnabled) {
+            autoLockRow.setVisibility(View.VISIBLE);
+            autoLockDivider.setVisibility(View.VISIBLE);
+            tvAutoLockValue.setText(SecurityHelper.getTimeoutLabel(
+                    SecurityHelper.getAutoLockTimeout(this)));
+        } else {
+            autoLockRow.setVisibility(View.GONE);
+            autoLockDivider.setVisibility(View.GONE);
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -802,6 +1196,28 @@ public class MainActivity extends Activity implements MainContract.View {
         }
     }
 
+    /**
+     * Filters the protected files list based on the current search query.
+     */
+    private void filterProtectedFiles() {
+        if (currentSearchQuery.isEmpty()) {
+            // No filter - show all files
+            adapter.setFiles(allProtectedFiles);
+            showEmptyState(allProtectedFiles.isEmpty(), R.string.label_no_files);
+        } else {
+            // Filter by filename (original name for encrypted files)
+            List<File> filtered = new ArrayList<>();
+            for (File file : allProtectedFiles) {
+                String displayName = HeaderObfuscator.getOriginalName(file).toLowerCase();
+                if (displayName.contains(currentSearchQuery)) {
+                    filtered.add(file);
+                }
+            }
+            adapter.setFiles(filtered);
+            showEmptyState(filtered.isEmpty(), R.string.search_no_results);
+        }
+    }
+
     private void saveBrowseScrollPosition() {
         int position = browseListView.getFirstVisiblePosition();
         View child = browseListView.getChildAt(0);
@@ -813,6 +1229,27 @@ public class MainActivity extends Activity implements MainContract.View {
         } else {
             browseFolderScrollPosition = position;
             browseFolderScrollOffset = offset;
+        }
+    }
+
+    /**
+     * Shows or hides the empty state with proper icon and message.
+     */
+    private void showEmptyState(boolean show, int messageResId) {
+        if (show) {
+            emptyStateContainer.setVisibility(View.VISIBLE);
+            tvEmpty.setText(messageResId);
+        } else {
+            emptyStateContainer.setVisibility(View.GONE);
+        }
+    }
+
+    private void showEmptyState(boolean show, String message) {
+        if (show) {
+            emptyStateContainer.setVisibility(View.VISIBLE);
+            tvEmpty.setText(message);
+        } else {
+            emptyStateContainer.setVisibility(View.GONE);
         }
     }
 
@@ -877,6 +1314,6 @@ public class MainActivity extends Activity implements MainContract.View {
         }
 
         browseAdapter.setItems(updatedItems);
-        tvEmpty.setVisibility(updatedItems.isEmpty() ? View.VISIBLE : View.GONE);
+        showEmptyState(updatedItems.isEmpty(), R.string.label_no_files);
     }
 }

@@ -2,14 +2,14 @@ package com.rulerhao.media_protector.util;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.hardware.fingerprint.FingerprintManager;
+import android.hardware.biometrics.BiometricManager;
 import android.os.Build;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
 /**
- * Helper class for managing PIN and fingerprint security settings.
+ * Helper class for managing PIN and biometric security settings.
  */
 public class SecurityHelper {
 
@@ -17,6 +17,12 @@ public class SecurityHelper {
     private static final String KEY_PIN_HASH = "pin_hash";
     private static final String KEY_PIN_ENABLED = "pin_enabled";
     private static final String KEY_FINGERPRINT_ENABLED = "fingerprint_enabled";
+    private static final String KEY_AUTO_LOCK_TIMEOUT = "auto_lock_timeout";
+    private static final String KEY_LAST_ACTIVITY_TIME = "last_activity_time";
+
+    /** Auto-lock timeout options in minutes. 0 = never. */
+    public static final int[] TIMEOUT_OPTIONS = {0, 1, 5, 15, 30};
+    public static final int DEFAULT_TIMEOUT = 5; // 5 minutes default
 
     private SecurityHelper() {}
 
@@ -28,23 +34,55 @@ public class SecurityHelper {
     }
 
     /**
-     * Check if fingerprint unlock is enabled.
+     * Check if biometric unlock is enabled (stored as fingerprint for backwards compatibility).
      */
     public static boolean isFingerprintEnabled(Context context) {
         return getPrefs(context).getBoolean(KEY_FINGERPRINT_ENABLED, false);
     }
 
     /**
-     * Check if fingerprint hardware is available and enrolled.
+     * Alias for isFingerprintEnabled for clarity.
+     */
+    public static boolean isBiometricEnabled(Context context) {
+        return isFingerprintEnabled(context);
+    }
+
+    /**
+     * Check if biometric hardware is available and enrolled.
+     * Supports fingerprint, face, and other biometrics on Android 10+.
+     */
+    public static boolean isBiometricAvailable(Context context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            // Android 10+ - use BiometricManager
+            try {
+                BiometricManager biometricManager =
+                        (BiometricManager) context.getSystemService(Context.BIOMETRIC_SERVICE);
+                if (biometricManager == null) {
+                    return false;
+                }
+                int canAuthenticate = biometricManager.canAuthenticate();
+                return canAuthenticate == BiometricManager.BIOMETRIC_SUCCESS;
+            } catch (Exception e) {
+                return false;
+            }
+        } else {
+            // Android 6-9 - fallback to fingerprint check
+            return isFingerprintAvailableLegacy(context);
+        }
+    }
+
+    /**
+     * Legacy fingerprint check for Android 6-9.
      */
     @SuppressWarnings("deprecation")
-    public static boolean isFingerprintAvailable(Context context) {
+    private static boolean isFingerprintAvailableLegacy(Context context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
             return false;
         }
         try {
-            FingerprintManager fingerprintManager =
-                    (FingerprintManager) context.getSystemService(Context.FINGERPRINT_SERVICE);
+            android.hardware.fingerprint.FingerprintManager fingerprintManager =
+                    (android.hardware.fingerprint.FingerprintManager)
+                            context.getSystemService(Context.FINGERPRINT_SERVICE);
             if (fingerprintManager == null) {
                 return false;
             }
@@ -53,6 +91,13 @@ public class SecurityHelper {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    /**
+     * Alias for backwards compatibility.
+     */
+    public static boolean isFingerprintAvailable(Context context) {
+        return isBiometricAvailable(context);
     }
 
     /**
@@ -101,6 +146,57 @@ public class SecurityHelper {
      */
     public static boolean isLockEnabled(Context context) {
         return isPinEnabled(context);
+    }
+
+    /**
+     * Get the auto-lock timeout in minutes. 0 = never.
+     */
+    public static int getAutoLockTimeout(Context context) {
+        return getPrefs(context).getInt(KEY_AUTO_LOCK_TIMEOUT, DEFAULT_TIMEOUT);
+    }
+
+    /**
+     * Set the auto-lock timeout in minutes.
+     */
+    public static void setAutoLockTimeout(Context context, int minutes) {
+        getPrefs(context).edit()
+                .putInt(KEY_AUTO_LOCK_TIMEOUT, minutes)
+                .apply();
+    }
+
+    /**
+     * Update the last activity timestamp.
+     */
+    public static void updateLastActivityTime(Context context) {
+        getPrefs(context).edit()
+                .putLong(KEY_LAST_ACTIVITY_TIME, System.currentTimeMillis())
+                .apply();
+    }
+
+    /**
+     * Check if the app should be locked based on timeout.
+     */
+    public static boolean shouldLockDueToTimeout(Context context) {
+        if (!isPinEnabled(context)) return false;
+
+        int timeoutMinutes = getAutoLockTimeout(context);
+        if (timeoutMinutes == 0) return false; // Never auto-lock
+
+        long lastActivity = getPrefs(context).getLong(KEY_LAST_ACTIVITY_TIME, 0);
+        if (lastActivity == 0) return false;
+
+        long elapsed = System.currentTimeMillis() - lastActivity;
+        long timeoutMs = timeoutMinutes * 60 * 1000L;
+        return elapsed > timeoutMs;
+    }
+
+    /**
+     * Get timeout label for display.
+     */
+    public static String getTimeoutLabel(int minutes) {
+        if (minutes == 0) return "Never";
+        if (minutes == 1) return "1 minute";
+        return minutes + " minutes";
     }
 
     private static SharedPreferences getPrefs(Context context) {

@@ -133,8 +133,8 @@ public class MainPresenter implements MainContract.Presenter {
 
         repository.encryptFiles(toEncrypt, new MediaRepository.OperationCallback() {
             @Override
-            public void onProgress(int done, int total) {
-                postIfAlive(() -> withView(v -> v.showProgress(done, total, true)));
+            public void onProgress(int done, int total, String fileName, long bytesProcessed, long bytesTotal) {
+                postIfAlive(() -> withView(v -> v.showProgress(done, total, true, fileName, bytesProcessed, bytesTotal)));
             }
             @Override
             public void onComplete(int succeeded, int failed) {
@@ -154,8 +154,8 @@ public class MainPresenter implements MainContract.Presenter {
         withView(v -> v.updateSelectionMode(false, 0));
         repository.encryptFiles(files, new MediaRepository.OperationCallback() {
             @Override
-            public void onProgress(int done, int total) {
-                postIfAlive(() -> withView(v -> v.showProgress(done, total, true)));
+            public void onProgress(int done, int total, String fileName, long bytesProcessed, long bytesTotal) {
+                postIfAlive(() -> withView(v -> v.showProgress(done, total, true, fileName, bytesProcessed, bytesTotal)));
             }
             @Override
             public void onComplete(int succeeded, int failed) {
@@ -179,8 +179,8 @@ public class MainPresenter implements MainContract.Presenter {
 
         repository.decryptFiles(toDecrypt, new MediaRepository.OperationCallback() {
             @Override
-            public void onProgress(int done, int total) {
-                postIfAlive(() -> withView(v -> v.showProgress(done, total, false)));
+            public void onProgress(int done, int total, String fileName, long bytesProcessed, long bytesTotal) {
+                postIfAlive(() -> withView(v -> v.showProgress(done, total, false, fileName, bytesProcessed, bytesTotal)));
             }
             @Override
             public void onComplete(int succeeded, int failed) {
@@ -206,8 +206,8 @@ public class MainPresenter implements MainContract.Presenter {
 
         repository.exportFiles(toExport, destFolder, new MediaRepository.OperationCallback() {
             @Override
-            public void onProgress(int done, int total) {
-                postIfAlive(() -> withView(v -> v.showExportProgress(done, total)));
+            public void onProgress(int done, int total, String fileName, long bytesProcessed, long bytesTotal) {
+                postIfAlive(() -> withView(v -> v.showExportProgress(done, total, fileName, bytesProcessed, bytesTotal)));
             }
             @Override
             public void onComplete(int succeeded, int failed) {

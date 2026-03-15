@@ -21,11 +21,13 @@ public interface MainContract {
 
         void showOperationResult(int succeeded, int failed);
 
-        void showProgress(int done, int total, boolean encrypting);
+        void showProgress(int done, int total, boolean encrypting, String currentFileName,
+                          long bytesProcessed, long bytesTotal);
 
         void showExportResult(int succeeded, int failed, String folderName);
 
-        void showExportProgress(int done, int total);
+        void showExportProgress(int done, int total, String currentFileName,
+                                long bytesProcessed, long bytesTotal);
     }
 
     interface Presenter {

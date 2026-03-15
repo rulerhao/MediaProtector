@@ -18,11 +18,19 @@ public class FileConfig {
     }
 
     private static final Set<String> SUPPORTED_EXTENSIONS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
-            ".jpg", ".jpeg", ".png", ".mp4"
+            ".jpg", ".jpeg", ".png", ".gif", ".heic", ".heif", ".mp4"
     )));
 
     private static final Set<String> VIDEO_EXTENSIONS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
             ".mp4"
+    )));
+
+    private static final Set<String> GIF_EXTENSIONS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+            ".gif"
+    )));
+
+    private static final Set<String> HEIF_EXTENSIONS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+            ".heic", ".heif"
     )));
 
     public static boolean isSupportedMediaFile(String filename) {
@@ -62,6 +70,24 @@ public class FileConfig {
         if (filename == null) return false;
         String lower = filename.toLowerCase();
         for (String ext : VIDEO_EXTENSIONS) {
+            if (lower.endsWith(ext)) return true;
+        }
+        return false;
+    }
+
+    public static boolean isGifFile(String filename) {
+        if (filename == null) return false;
+        String lower = filename.toLowerCase();
+        for (String ext : GIF_EXTENSIONS) {
+            if (lower.endsWith(ext)) return true;
+        }
+        return false;
+    }
+
+    public static boolean isHeifFile(String filename) {
+        if (filename == null) return false;
+        String lower = filename.toLowerCase();
+        for (String ext : HEIF_EXTENSIONS) {
             if (lower.endsWith(ext)) return true;
         }
         return false;

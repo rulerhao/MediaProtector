@@ -1,10 +1,12 @@
 package com.rulerhao.media_protector.util;
 
+import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.media.MediaMetadataRetriever;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.DisplayMetrics;
 import android.util.LruCache;
 import android.widget.ImageView;
 
@@ -34,10 +36,19 @@ import java.util.concurrent.Executors;
 public class ThumbnailLoader {
 
     private static final int THREAD_COUNT = 4;
-    private static final int CACHE_SIZE   = 50; // increased for shared cache
+    /**
+     * Minimum cache size regardless of memory constraints.
+     */
+    private static final int MIN_CACHE_SIZE = 20;
+    /**
+     * Maximum cache size to prevent excessive memory usage.
+     */
+    private static final int MAX_CACHE_SIZE = 100;
 
     // ─── Singleton ───────────────────────────────────────────────────────
     private static volatile ThumbnailLoader instance;
+    private static int targetThumbnailSize = 200; // default, will be calculated based on screen
+    private static int dynamicCacheSize = 50; // default, recalculated based on available memory
 
     public static ThumbnailLoader getInstance() {
         if (instance == null) {
@@ -50,6 +61,33 @@ public class ThumbnailLoader {
         return instance;
     }
 
+    /**
+     * Initialize with context to calculate optimal thumbnail size based on screen density
+     * and dynamic cache size based on available memory.
+     * Should be called once from Application or MainActivity.
+     */
+    public static void init(Context context) {
+        DisplayMetrics metrics = context.getResources().getDisplayMetrics();
+        // Calculate thumbnail size: screen width / 3 columns (grid), capped at 300dp
+        int columnWidth = metrics.widthPixels / 3;
+        targetThumbnailSize = Math.min(columnWidth, (int) (300 * metrics.density));
+
+        // Calculate dynamic cache size based on available memory
+        Runtime runtime = Runtime.getRuntime();
+        long maxMemory = runtime.maxMemory(); // max heap in bytes
+
+        // Estimate average thumbnail size (ARGB_8888 = 4 bytes per pixel)
+        // Using target thumbnail size squared * 4 bytes
+        long avgThumbnailBytes = (long) targetThumbnailSize * targetThumbnailSize * 4;
+
+        // Allocate ~15% of max heap for thumbnail cache
+        long cacheMemory = maxMemory / 7;
+        int calculatedSize = (int) (cacheMemory / avgThumbnailBytes);
+
+        // Clamp to reasonable bounds
+        dynamicCacheSize = Math.max(MIN_CACHE_SIZE, Math.min(MAX_CACHE_SIZE, calculatedSize));
+    }
+
     private ThumbnailLoader() {
         // Private constructor for singleton
     }
@@ -57,8 +95,13 @@ public class ThumbnailLoader {
     // ─── Instance fields ─────────────────────────────────────────────────
     private final ExecutorService executor = Executors.newFixedThreadPool(THREAD_COUNT);
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
-    private final LruCache<String, Bitmap> cache = new LruCache<>(CACHE_SIZE);
+    private final LruCache<String, Bitmap> cache;
     private final HeaderObfuscator obfuscator = new HeaderObfuscator();
+
+    {
+        // Initialize cache with dynamic size (defaults to 50 if init() not called)
+        cache = new LruCache<>(dynamicCacheSize);
+    }
 
     /**
      * Loads a thumbnail for {@code file} into {@code target}.
@@ -115,21 +158,54 @@ public class ThumbnailLoader {
             return decodeVideoFrame(file, encrypted);
         }
 
-        // Image path: decode via BitmapFactory with 1/4 resolution downsampling.
-        BitmapFactory.Options opts = new BitmapFactory.Options();
-        opts.inSampleSize = 4;
+        // Image path: decode with adaptive sampling based on target thumbnail size.
         try {
+            // First, decode bounds only to calculate optimal sample size
+            BitmapFactory.Options boundsOpts = new BitmapFactory.Options();
+            boundsOpts.inJustDecodeBounds = true;
+
             if (encrypted) {
                 try (InputStream is = obfuscator.getDecryptedStream(file)) {
-                    return BitmapFactory.decodeStream(is, null, opts);
+                    BitmapFactory.decodeStream(is, null, boundsOpts);
                 }
             } else {
-                return BitmapFactory.decodeFile(file.getAbsolutePath(), opts);
+                BitmapFactory.decodeFile(file.getAbsolutePath(), boundsOpts);
+            }
+
+            // Calculate optimal sample size
+            int sampleSize = calculateSampleSize(boundsOpts.outWidth, boundsOpts.outHeight, targetThumbnailSize);
+
+            // Now decode with calculated sample size
+            BitmapFactory.Options decodeOpts = new BitmapFactory.Options();
+            decodeOpts.inSampleSize = sampleSize;
+
+            if (encrypted) {
+                try (InputStream is = obfuscator.getDecryptedStream(file)) {
+                    return BitmapFactory.decodeStream(is, null, decodeOpts);
+                }
+            } else {
+                return BitmapFactory.decodeFile(file.getAbsolutePath(), decodeOpts);
             }
         } catch (IOException e) {
             // File may be unreadable or corrupt; silently skip
             return null;
         }
+    }
+
+    /**
+     * Calculates the optimal sample size for decoding an image.
+     * Returns a power of 2 that will result in a bitmap close to the target size.
+     */
+    private int calculateSampleSize(int width, int height, int targetSize) {
+        int sampleSize = 1;
+        int minDimension = Math.min(width, height);
+
+        // Double sample size until image fits within target
+        while (minDimension / sampleSize > targetSize * 2) {
+            sampleSize *= 2;
+        }
+
+        return Math.max(1, sampleSize);
     }
 
     /**
@@ -152,10 +228,13 @@ public class ThumbnailLoader {
                     0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC);
             if (frame == null) return null;
 
-            // Scale down to approximately 1/4 dimensions to match the image inSampleSize=4.
-            int w = Math.max(1, frame.getWidth()  / 4);
-            int h = Math.max(1, frame.getHeight() / 4);
-            Bitmap scaled = Bitmap.createScaledBitmap(frame, w, h, false);
+            // Scale down to target thumbnail size while maintaining aspect ratio
+            int origW = frame.getWidth();
+            int origH = frame.getHeight();
+            float scale = (float) targetThumbnailSize / Math.min(origW, origH);
+            int w = Math.max(1, (int) (origW * scale));
+            int h = Math.max(1, (int) (origH * scale));
+            Bitmap scaled = Bitmap.createScaledBitmap(frame, w, h, true);
             frame.recycle();
             return scaled;
 

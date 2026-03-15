@@ -17,7 +17,8 @@ public class OperationCallbackFactory {
      * Listener interface for operation progress and completion.
      */
     public interface OperationListener {
-        void onProgress(int done, int total, boolean isEncrypting);
+        void onProgress(int done, int total, boolean isEncrypting, String fileName,
+                        long bytesProcessed, long bytesTotal);
         void onComplete(int succeeded, int failed);
     }
 
@@ -25,7 +26,8 @@ public class OperationCallbackFactory {
      * Listener interface for export operations.
      */
     public interface ExportListener {
-        void onProgress(int done, int total);
+        void onProgress(int done, int total, String fileName,
+                        long bytesProcessed, long bytesTotal);
         void onComplete(int succeeded, int failed, String folderName);
     }
 
@@ -61,11 +63,13 @@ public class OperationCallbackFactory {
     private MediaRepository.OperationCallback createCryptoCallback(boolean isEncrypting, Runnable onComplete) {
         return new MediaRepository.OperationCallback() {
             @Override
-            public void onProgress(int done, int total) {
+            public void onProgress(int done, int total, String fileName,
+                                   long bytesProcessed, long bytesTotal) {
                 postIfAlive(() -> {
                     OperationListener listener = listenerRef.get();
                     if (listener != null) {
-                        listener.onProgress(done, total, isEncrypting);
+                        listener.onProgress(done, total, isEncrypting, fileName,
+                                bytesProcessed, bytesTotal);
                     }
                 });
             }
@@ -95,11 +99,12 @@ public class OperationCallbackFactory {
 
         return new MediaRepository.OperationCallback() {
             @Override
-            public void onProgress(int done, int total) {
+            public void onProgress(int done, int total, String fileName,
+                                   long bytesProcessed, long bytesTotal) {
                 postIfAlive(() -> {
                     ExportListener listener = exportRef.get();
                     if (listener != null) {
-                        listener.onProgress(done, total);
+                        listener.onProgress(done, total, fileName, bytesProcessed, bytesTotal);
                     }
                 });
             }

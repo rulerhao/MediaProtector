@@ -5,6 +5,9 @@ import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
+import android.graphics.ImageDecoder;
+import android.graphics.drawable.AnimatedImageDrawable;
+import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.media.MediaPlayer;
 import android.os.Build;
@@ -14,14 +17,18 @@ import android.os.Looper;
 import android.view.GestureDetector;
 import android.view.Gravity;
 import android.view.MotionEvent;
-import android.view.SurfaceHolder;
-import android.view.SurfaceView;
+import android.graphics.SurfaceTexture;
+import android.view.Surface;
+import android.view.TextureView;
 import android.view.View;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+
+import com.rulerhao.media_protector.util.ZoomableImageView;
+import com.rulerhao.media_protector.util.ZoomableTextureView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.SeekBar;
@@ -35,10 +42,15 @@ import com.rulerhao.media_protector.util.EncryptedMediaDataSource;
 import com.rulerhao.media_protector.util.ThemeHelper;
 import com.rulerhao.media_protector.util.ThumbnailLoader;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
@@ -57,7 +69,7 @@ import java.util.concurrent.Executors;
  * <p>Swipe left/right anywhere outside the bottom area to navigate to the previous/next file.
  * Tapping a thumbnail in the filmstrip jumps directly to that file.
  */
-public class MediaViewerActivity extends Activity implements SurfaceHolder.Callback {
+public class MediaViewerActivity extends Activity implements TextureView.SurfaceTextureListener {
 
     /** String[] — all file paths in the current view (enables swipe navigation). */
     public static final String EXTRA_FILE_LIST  = "file_list";
@@ -79,8 +91,9 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
     // ── Views ─────────────────────────────────────────────────────────────
     private View             viewerTopBar;
     private TextView         tvFilename;
-    private ImageView        imageView;
-    private SurfaceView      surfaceView;
+    private ZoomableImageView imageView;
+    private ZoomableTextureView textureView;
+    private Surface          videoSurface;
     private LinearLayout     bottomArea;       // wraps videoControls + thumbnailStrip
     private LinearLayout     videoControls;
     private ImageButton      btnPlayPause;
@@ -138,7 +151,7 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
         viewerTopBar       = findViewById(R.id.viewerTopBar);
         tvFilename         = findViewById(R.id.tvFilename);
         imageView          = findViewById(R.id.imageView);
-        surfaceView        = findViewById(R.id.surfaceView);
+        textureView        = findViewById(R.id.textureView);
         bottomArea         = findViewById(R.id.bottomArea);
         videoControls      = findViewById(R.id.videoControls);
         btnPlayPause       = findViewById(R.id.btnPlayPause);
@@ -149,13 +162,16 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
         progressBar        = findViewById(R.id.progressBar);
         tvError            = findViewById(R.id.tvError);
 
-        surfaceView.getHolder().addCallback(this);
+        textureView.setSurfaceTextureListener(this);
 
         Button btnBack = findViewById(R.id.btnBack);
         btnBack.setOnClickListener(v -> finish());
 
         btnCrypto = findViewById(R.id.btnCrypto);
         btnCrypto.setOnClickListener(v -> performCrypto());
+
+        ImageButton btnInfo = findViewById(R.id.btnInfo);
+        btnInfo.setOnClickListener(v -> showFileInfo());
 
         btnPlayPause.setOnClickListener(v -> togglePlayPause());
         seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
@@ -185,24 +201,28 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
         stripLoader = ThumbnailLoader.getInstance();
         buildThumbnailStrip();
 
+        // Set up tap listener on ZoomableImageView for UI toggle when not zoomed
+        imageView.setOnSingleTapListener(this::toggleMode);
+        // Set up tap listener on ZoomableTextureView for UI toggle
+        textureView.setOnSingleTapListener(this::toggleMode);
+
         // Gesture: single tap on media area → toggle mode; horizontal fling → navigate.
         gestureDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
 
             @Override
             public boolean onSingleTapUp(MotionEvent e) {
-                // Ignore taps that land on the top bar or bottom area so those
-                // views can handle their own click events normally.
-                if (viewerTopBar.getVisibility() == View.VISIBLE
-                        && e.getY() <= viewerTopBar.getBottom()) return false;
-                if (bottomArea.getVisibility() == View.VISIBLE
-                        && e.getY() >= bottomArea.getTop()) return false;
-                toggleMode();
-                return false; // don't consume — let normal dispatch continue
+                // Let ZoomableImageView/ZoomableTextureView handle taps
+                // They will call toggleMode() via their tap listeners
+                return false;
             }
 
             @Override
             public boolean onFling(MotionEvent e1, MotionEvent e2, float vX, float vY) {
                 if (e1 == null) return false;
+                // Don't intercept flings when image is zoomed (allow panning)
+                if (!isVideoMode && imageView.isZoomed()) return false;
+                // Don't intercept flings when video is zoomed (allow panning)
+                if (isVideoMode && textureView.isZoomed()) return false;
                 // Don't intercept flings that start inside the bottom area.
                 if (bottomArea.getVisibility() == View.VISIBLE
                         && e1.getY() >= bottomArea.getTop()) return false;
@@ -362,7 +382,7 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
             imageView.setVisibility(View.GONE);
             setupVideo();
         } else {
-            surfaceView.setVisibility(View.GONE);
+            textureView.setVisibility(View.GONE);
             videoControls.setVisibility(View.GONE);
             surfaceReady = false;
             loadImage();
@@ -379,17 +399,140 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
 
     private void loadImage() {
         imageView.setVisibility(View.VISIBLE);
+        imageView.resetZoom(); // Reset zoom state for new image
         progressBar.setVisibility(View.VISIBLE);
         final File target = mediaFile;
+        final String originalName = encrypted
+                ? HeaderObfuscator.getOriginalName(target)
+                : target.getName();
+        final boolean isGif = FileConfig.isGifFile(originalName);
+        final boolean isHeif = FileConfig.isHeifFile(originalName);
+
         ioExecutor.execute(() -> {
-            Bitmap bmp = decodeImage(target);
-            mainHandler.post(() -> {
-                if (!target.equals(mediaFile)) return; // stale load; user navigated away
-                progressBar.setVisibility(View.GONE);
-                if (bmp != null) imageView.setImageBitmap(bmp);
-                else             showError(getString(R.string.error_load_media));
-            });
+            if (isGif && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                // Use ImageDecoder for animated GIF support (API 28+)
+                Drawable drawable = decodeWithImageDecoder(target);
+                mainHandler.post(() -> {
+                    if (!target.equals(mediaFile)) return;
+                    progressBar.setVisibility(View.GONE);
+                    if (drawable != null) {
+                        imageView.setImageDrawable(drawable);
+                        if (drawable instanceof AnimatedImageDrawable) {
+                            ((AnimatedImageDrawable) drawable).start();
+                        }
+                    } else {
+                        showError(getString(R.string.error_load_media));
+                    }
+                });
+            } else if (isHeif && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                // Use ImageDecoder for HEIC/HEIF support (API 28+)
+                Bitmap bmp = decodeHeifImage(target);
+                mainHandler.post(() -> {
+                    if (!target.equals(mediaFile)) return;
+                    progressBar.setVisibility(View.GONE);
+                    if (bmp != null) imageView.setImageBitmap(bmp);
+                    else             showError(getString(R.string.error_load_media));
+                });
+            } else {
+                // Regular image or API < 28 - use bitmap
+                Bitmap bmp = decodeImage(target);
+                mainHandler.post(() -> {
+                    if (!target.equals(mediaFile)) return;
+                    progressBar.setVisibility(View.GONE);
+                    if (bmp != null) imageView.setImageBitmap(bmp);
+                    else             showError(getString(R.string.error_load_media));
+                });
+            }
         });
+    }
+
+    /** Maximum file size (50MB) to load entirely into memory for ImageDecoder. */
+    private static final long MAX_MEMORY_DECODE_SIZE = 50 * 1024 * 1024;
+
+    /**
+     * Decodes an image using ImageDecoder (API 28+).
+     * Supports GIF, HEIC, HEIF, and other formats.
+     * For large files, falls back to sampled bitmap decoding to avoid OOM.
+     */
+    private Drawable decodeWithImageDecoder(File file) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+            return null;
+        }
+
+        // Check file size to avoid OOM on large files
+        if (file.length() > MAX_MEMORY_DECODE_SIZE && encrypted) {
+            // For large encrypted files, fall back to bitmap decode with sampling
+            Bitmap bmp = decodeImage(file);
+            if (bmp != null) {
+                return new android.graphics.drawable.BitmapDrawable(getResources(), bmp);
+            }
+            return null;
+        }
+
+        try {
+            ImageDecoder.Source source;
+            if (encrypted) {
+                // For encrypted files, we need to decrypt to a byte array first
+                try (InputStream is = obfuscator.getDecryptedStream(file)) {
+                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                    byte[] buffer = new byte[8192];
+                    int len;
+                    while ((len = is.read(buffer)) != -1) {
+                        baos.write(buffer, 0, len);
+                    }
+                    byte[] data = baos.toByteArray();
+                    source = ImageDecoder.createSource(ByteBuffer.wrap(data));
+                }
+            } else {
+                source = ImageDecoder.createSource(file);
+            }
+            return ImageDecoder.decodeDrawable(source);
+        } catch (IOException | OutOfMemoryError e) {
+            // Fall back to sampled bitmap on OOM
+            Bitmap bmp = decodeImage(file);
+            if (bmp != null) {
+                return new android.graphics.drawable.BitmapDrawable(getResources(), bmp);
+            }
+            return null;
+        }
+    }
+
+    /**
+     * Decodes a HEIC/HEIF image to bitmap using ImageDecoder (API 28+).
+     * For large files, uses sampling to avoid OOM.
+     */
+    private Bitmap decodeHeifImage(File file) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+            return null;
+        }
+
+        // Check file size to avoid OOM on large files
+        if (file.length() > MAX_MEMORY_DECODE_SIZE && encrypted) {
+            return decodeImage(file);
+        }
+
+        try {
+            ImageDecoder.Source source;
+            if (encrypted) {
+                // For encrypted files, decrypt to byte array
+                try (InputStream is = obfuscator.getDecryptedStream(file)) {
+                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                    byte[] buffer = new byte[8192];
+                    int len;
+                    while ((len = is.read(buffer)) != -1) {
+                        baos.write(buffer, 0, len);
+                    }
+                    byte[] data = baos.toByteArray();
+                    source = ImageDecoder.createSource(ByteBuffer.wrap(data));
+                }
+            } else {
+                source = ImageDecoder.createSource(file);
+            }
+            return ImageDecoder.decodeBitmap(source);
+        } catch (IOException | OutOfMemoryError e) {
+            // Fall back to regular decode on OOM
+            return decodeImage(file);
+        }
     }
 
     private Bitmap decodeImage(File file) {
@@ -402,7 +545,6 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
             BitmapFactory.Options opts = new BitmapFactory.Options();
             opts.inJustDecodeBounds = true;
             if (encrypted) {
-                HeaderObfuscator obfuscator = new HeaderObfuscator();
                 try (InputStream is = obfuscator.getDecryptedStream(file)) {
                     BitmapFactory.decodeStream(is, null, opts);
                 }
@@ -412,17 +554,16 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
 
             // Pass 2: decode with an inSampleSize that keeps the bitmap within
             // screen dimensions so it never exceeds the Canvas texture limit.
-            opts.inSampleSize     = calculateInSampleSize(opts.outWidth, opts.outHeight, maxW, maxH);
+            opts.inSampleSize = calculateInSampleSize(opts.outWidth, opts.outHeight, maxW, maxH);
             opts.inJustDecodeBounds = false;
             if (encrypted) {
-                HeaderObfuscator obfuscator = new HeaderObfuscator();
                 try (InputStream is = obfuscator.getDecryptedStream(file)) {
                     return BitmapFactory.decodeStream(is, null, opts);
                 }
             } else {
                 return BitmapFactory.decodeFile(file.getAbsolutePath(), opts);
             }
-        } catch (IOException e) {
+        } catch (IOException | OutOfMemoryError e) {
             return null;
         }
     }
@@ -446,15 +587,20 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
     private void setupVideo() {
         videoControls.setVisibility(View.VISIBLE);
         progressBar.setVisibility(View.VISIBLE);
-        if (surfaceView.getVisibility() == View.VISIBLE) {
-            // Video → video: force surface destruction so surfaceCreated() fires
-            // fresh for the new player (avoids BufferQueue "already connected").
-            surfaceView.setVisibility(View.GONE);
-            surfaceReady = false;
+        textureView.resetZoom(); // Reset zoom for new video
+        if (textureView.getVisibility() == View.VISIBLE) {
+            // Video → video: TextureView handles this smoothly
+            // We can reuse it, just need to reinit the player
+            if (surfaceReady && videoSurface != null) {
+                initPlayer();
+            }
         } else {
-            // Image → video (or first load): surface already gone; show to trigger
-            // surfaceCreated() → initPlayer().
-            surfaceView.setVisibility(View.VISIBLE);
+            // Image → video (or first load): show texture view
+            textureView.setVisibility(View.VISIBLE);
+            // If surface is already ready, init player now
+            if (surfaceReady && videoSurface != null) {
+                initPlayer();
+            }
         }
     }
 
@@ -467,12 +613,14 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
             } else {
                 mediaPlayer.setDataSource(mediaFile.getAbsolutePath());
             }
-            mediaPlayer.setDisplay(surfaceView.getHolder());
+            mediaPlayer.setSurface(videoSurface);
 
             mediaPlayer.setOnPreparedListener(mp -> {
                 playerPrepared = true;
                 progressBar.setVisibility(View.GONE);
                 seekBar.setMax(mp.getDuration());
+                // Set video size for proper zoom handling
+                textureView.setVideoSize(mp.getVideoWidth(), mp.getVideoHeight());
                 tickSeekBar();
                 if (startOnPrepared) {
                     mp.start();
@@ -529,9 +677,8 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
 
     private void releasePlayer() {
         if (mediaPlayer != null) {
-            // Disconnect from surface before release to clear the BufferQueue producer
-            // connection; without this the next player's prepareAsync() throws.
-            try { mediaPlayer.setDisplay(null); } catch (IllegalStateException ignored) {}
+            // Disconnect from surface before release
+            try { mediaPlayer.setSurface(null); } catch (IllegalStateException ignored) {}
             try { mediaPlayer.stop(); }          catch (IllegalStateException ignored) {}
             mediaPlayer.release();
             mediaPlayer = null;
@@ -543,32 +690,36 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // SurfaceHolder.Callback
+    // TextureView.SurfaceTextureListener
     // ─────────────────────────────────────────────────────────────────────
 
     @Override
-    public void surfaceCreated(SurfaceHolder holder) {
+    public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
+        videoSurface = new Surface(surface);
         surfaceReady = true;
-        if (isVideoMode) {
-            if (mediaPlayer == null) initPlayer();
-            else                     mediaPlayer.setDisplay(holder);
+        if (isVideoMode && mediaPlayer == null) {
+            initPlayer();
         }
     }
 
-    @Override public void surfaceChanged(SurfaceHolder h, int fmt, int w, int ht) {}
+    @Override
+    public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
+        // Update texture view with new size if needed
+    }
 
     @Override
-    public void surfaceDestroyed(SurfaceHolder holder) {
+    public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
         surfaceReady = false;
-        if (mediaPlayer != null) mediaPlayer.setDisplay(null);
-        // If a new video is waiting (player already released), recreate the surface
-        // so surfaceCreated() → initPlayer() can connect a fresh player.
-        if (isVideoMode && mediaPlayer == null) {
-            mainHandler.post(() -> {
-                if (isVideoMode && mediaPlayer == null)
-                    surfaceView.setVisibility(View.VISIBLE);
-            });
+        if (videoSurface != null) {
+            videoSurface.release();
+            videoSurface = null;
         }
+        return true;
+    }
+
+    @Override
+    public void onSurfaceTextureUpdated(SurfaceTexture surface) {
+        // No action needed
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -673,6 +824,73 @@ public class MediaViewerActivity extends Activity implements SurfaceHolder.Callb
     private static String formatMs(int ms) {
         int s = ms / 1000;
         return String.format(Locale.getDefault(), "%d:%02d", s / 60, s % 60);
+    }
+
+    private void showFileInfo() {
+        if (mediaFile == null) return;
+
+        String originalName = encrypted
+                ? HeaderObfuscator.getOriginalName(mediaFile)
+                : mediaFile.getName();
+
+        StringBuilder info = new StringBuilder();
+
+        // File name
+        info.append(getString(R.string.info_filename, originalName)).append("\n\n");
+
+        // File size
+        long sizeBytes = mediaFile.length();
+        String sizeStr = formatFileSize(sizeBytes);
+        info.append(getString(R.string.info_size, sizeStr)).append("\n\n");
+
+        // Dimensions (if image and available)
+        if (!isVideoMode) {
+            try {
+                BitmapFactory.Options opts = new BitmapFactory.Options();
+                opts.inJustDecodeBounds = true;
+                if (encrypted) {
+                    try (InputStream is = obfuscator.getDecryptedStream(mediaFile)) {
+                        BitmapFactory.decodeStream(is, null, opts);
+                    }
+                } else {
+                    BitmapFactory.decodeFile(mediaFile.getAbsolutePath(), opts);
+                }
+                if (opts.outWidth > 0 && opts.outHeight > 0) {
+                    info.append(getString(R.string.info_dimensions, opts.outWidth, opts.outHeight)).append("\n\n");
+                }
+            } catch (IOException ignored) {}
+        } else if (playerPrepared && mediaPlayer != null) {
+            // Video dimensions
+            int w = mediaPlayer.getVideoWidth();
+            int h = mediaPlayer.getVideoHeight();
+            if (w > 0 && h > 0) {
+                info.append(getString(R.string.info_dimensions, w, h)).append("\n\n");
+            }
+        }
+
+        // Modified date
+        long lastModified = mediaFile.lastModified();
+        if (lastModified > 0) {
+            SimpleDateFormat sdf = new SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault());
+            String dateStr = sdf.format(new Date(lastModified));
+            info.append(getString(R.string.info_date, dateStr)).append("\n\n");
+        }
+
+        // File path
+        info.append(getString(R.string.info_path, mediaFile.getAbsolutePath()));
+
+        new android.app.AlertDialog.Builder(this)
+                .setTitle(R.string.info_dialog_title)
+                .setMessage(info.toString())
+                .setPositiveButton(R.string.btn_ok, null)
+                .show();
+    }
+
+    private String formatFileSize(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024 * 1024) return String.format(Locale.getDefault(), "%.1f KB", bytes / 1024.0);
+        if (bytes < 1024 * 1024 * 1024) return String.format(Locale.getDefault(), "%.1f MB", bytes / (1024.0 * 1024));
+        return String.format(Locale.getDefault(), "%.2f GB", bytes / (1024.0 * 1024 * 1024));
     }
 
     // ─────────────────────────────────────────────────────────────────────

@@ -812,6 +812,10 @@ public class MainActivity extends Activity implements MainContract.View {
         } else if (requestCode == LOCK_SCREEN_REQUEST_CODE) {
             if (resultCode == RESULT_OK) {
                 isAuthenticated = true;
+                // Refresh UI and timestamp after successful authentication
+                SecurityHelper.updateLastActivityTime(this);
+                // Ensure the current tab is properly displayed
+                switchNavTab(currentNavTab);
             } else {
                 // User didn't authenticate - exit app
                 finishAffinity();
@@ -916,8 +920,9 @@ public class MainActivity extends Activity implements MainContract.View {
                 }
                 browseAdapter.clearSelection();
                 presenter.switchMode(true);
-                // Restore scroll position after data loads
-                gridView.post(() -> gridView.setSelection(protectedScrollPosition));
+                // Restore scroll position with offset after data loads
+                gridView.post(() -> gridView.setSelectionFromTop(
+                        protectedScrollPosition, protectedScrollOffset));
                 break;
 
             case ORIGINAL:
@@ -928,7 +933,16 @@ public class MainActivity extends Activity implements MainContract.View {
                 browseProgressBar.setVisibility(View.VISIBLE);
                 browseAdapter.setItems(new ArrayList<>());
                 presenter.switchMode(false);
-                // Scroll position restored in showFiles after data loads
+                // Restore scroll position with offset after data loads
+                browseListView.post(() -> {
+                    if (browseMode == BrowseMode.DATE) {
+                        browseListView.setSelectionFromTop(
+                                browseDateScrollPosition, browseDateScrollOffset);
+                    } else {
+                        browseListView.setSelectionFromTop(
+                                browseFolderScrollPosition, browseFolderScrollOffset);
+                    }
+                });
                 break;
 
             case SETTINGS:

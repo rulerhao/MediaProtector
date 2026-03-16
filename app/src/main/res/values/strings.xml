@@ -139,6 +139,10 @@
     <string name="album_moved">Moved to %s</string>
     <string name="album_delete">Delete Album</string>
     <string name="album_deleted">Album deleted</string>
+    <string name="encrypt_to_album_title">Protect to Album</string>
+    <string name="encrypt_to_main">Main Collection</string>
+    <string name="move_to_main">Main Collection</string>
+    <string name="btn_move_to_album">Move</string>
     <string name="btn_cancel">Cancel</string>
     <string name="btn_create">Create</string>
     <string name="btn_ok">OK</string>

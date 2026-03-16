@@ -523,10 +523,10 @@ public class MainActivity extends Activity implements MainContract.View {
             if (showEncrypted) {
                 presenter.decryptSelected();
             } else {
-                // Protect (encrypt) files selected in browse
+                // Protect (encrypt) files selected in browse - show album selection dialog
                 Set<File> sel = browseAdapter.getSelectedFiles();
                 if (!sel.isEmpty()) {
-                    presenter.encryptFiles(new ArrayList<>(sel));
+                    showEncryptToAlbumDialog(new ArrayList<>(sel));
                 }
             }
         });
@@ -1250,6 +1250,77 @@ public class MainActivity extends Activity implements MainContract.View {
                     } else {
                         presenter.moveToAlbum(toMove, albumDirs.get(which - 1));
                     }
+                })
+                .setNegativeButton(R.string.btn_cancel, null)
+                .show();
+    }
+
+    /**
+     * Shows a dialog to select which album to encrypt files into.
+     * Called when encrypting files from the browse/Original tab.
+     */
+    private void showEncryptToAlbumDialog(List<File> filesToEncrypt) {
+        if (filesToEncrypt.isEmpty()) return;
+
+        File protectedRoot = FileConfig.getProtectedFolder();
+        List<File> albumDirs = AlbumManager.getAlbumDirs(protectedRoot);
+
+        List<String> options = new ArrayList<>();
+        options.add(getString(R.string.encrypt_to_main));       // "Main Collection"
+        for (File dir : albumDirs) options.add(dir.getName());
+        options.add(getString(R.string.album_create));          // "New Album"
+
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.encrypt_to_album_title)
+                .setItems(options.toArray(new String[0]), (dialog, which) -> {
+                    browseAdapter.clearSelection();
+                    if (which == 0) {
+                        // Encrypt to main protected folder (default behavior)
+                        presenter.encryptFiles(filesToEncrypt);
+                    } else if (which == options.size() - 1) {
+                        // Create new album and encrypt to it
+                        showCreateAlbumForEncryptDialog(filesToEncrypt);
+                    } else {
+                        // Encrypt to selected album
+                        File targetAlbum = albumDirs.get(which - 1);
+                        presenter.encryptFilesToAlbum(filesToEncrypt, targetAlbum);
+                    }
+                })
+                .setNegativeButton(R.string.btn_cancel, null)
+                .show();
+    }
+
+    /**
+     * Shows a dialog to create a new album and encrypt files into it.
+     */
+    private void showCreateAlbumForEncryptDialog(List<File> filesToEncrypt) {
+        EditText input = new EditText(this);
+        input.setHint(R.string.album_name_hint);
+        input.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+                | android.text.InputType.TYPE_TEXT_FLAG_CAP_WORDS);
+        LinearLayout container = new LinearLayout(this);
+        container.setPadding(48, 32, 48, 0);
+        container.addView(input);
+
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.album_create_title)
+                .setView(container)
+                .setPositiveButton(R.string.btn_create, (d, which) -> {
+                    String name = input.getText().toString().trim();
+                    if (!AlbumManager.isValidName(name)) return;
+                    File protectedRoot = FileConfig.getProtectedFolder();
+                    if (AlbumManager.albumExists(protectedRoot, name)) {
+                        Toast.makeText(this, R.string.album_exists, Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    File newAlbum = AlbumManager.createAlbum(protectedRoot, name);
+                    if (newAlbum == null) {
+                        Toast.makeText(this, R.string.error_generic, Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    Toast.makeText(this, R.string.album_created, Toast.LENGTH_SHORT).show();
+                    // Encrypt files to the new album
+                    presenter.encryptFilesToAlbum(filesToEncrypt, newAlbum);
                 })
                 .setNegativeButton(R.string.btn_cancel, null)
                 .show();

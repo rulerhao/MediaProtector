@@ -50,6 +50,9 @@ public interface MainContract {
         /** Encrypts an arbitrary list of files (used by the browse/Original tab). */
         void encryptFiles(List<File> files);
 
+        /** Encrypts files directly to a specific album folder. */
+        void encryptFilesToAlbum(List<File> files, File targetAlbum);
+
         void loadFolder(File folder);
 
         void decryptSelected();

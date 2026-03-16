@@ -118,9 +118,22 @@ public class MediaRepository {
 
     /**
      * Encrypt files: converts original files to .mprot format, deletes originals.
+     * Files are saved to the default protected folder.
      */
     public void encryptFiles(List<File> files, OperationCallback callback) {
         processFiles(Operation.ENCRYPT, files, null, callback);
+    }
+
+    /**
+     * Encrypt files to a specific album/folder.
+     * Files are saved to the specified target folder instead of the default protected folder.
+     *
+     * @param files       the files to encrypt
+     * @param targetAlbum the target album folder to save encrypted files to
+     * @param callback    progress and completion callback
+     */
+    public void encryptFilesToAlbum(List<File> files, File targetAlbum, OperationCallback callback) {
+        processFilesToAlbum(files, targetAlbum, callback);
     }
 
     /**
@@ -197,6 +210,60 @@ public class MediaRepository {
             }
             callback.onComplete(succeeded, failed);
         });
+    }
+
+    /**
+     * Encrypts files directly to a specific album folder.
+     */
+    private void processFilesToAlbum(List<File> files, File targetAlbum, OperationCallback callback) {
+        cryptoExecutor.execute(() -> {
+            int succeeded = 0;
+            int failed = 0;
+            int total = files.size();
+
+            // Calculate total bytes for progress reporting
+            long bytesTotal = 0;
+            for (File file : files) {
+                bytesTotal += file.length();
+            }
+            long bytesProcessed = 0;
+
+            // Ensure target album folder exists
+            if (!targetAlbum.exists()) {
+                targetAlbum.mkdirs();
+            }
+
+            for (int i = 0; i < total; i++) {
+                File file = files.get(i);
+                long fileSize = file.length();
+                String fileName = file.getName();
+                callback.onProgress(i + 1, total, fileName, bytesProcessed, bytesTotal);
+                try {
+                    processEncryptToAlbum(file, targetAlbum);
+                    succeeded++;
+                    bytesProcessed += fileSize;
+                } catch (Exception e) {
+                    Log.e(TAG, "Failed to encrypt to album: " + file, e);
+                    failed++;
+                    bytesProcessed += fileSize;
+                }
+            }
+            callback.onComplete(succeeded, failed);
+        });
+    }
+
+    private void processEncryptToAlbum(File file, File targetAlbum) throws Exception {
+        // Create encrypted file in target album instead of default location
+        String encryptedName = file.getName() + FileConfig.ENCRYPTED_EXTENSION;
+        File outFile = getUniqueFile(new File(targetAlbum, encryptedName));
+
+        // Store original path before encrypting
+        OriginalPathStore.storePath(context, outFile.getName(), file.getAbsolutePath());
+
+        obfuscator.encrypt(file, outFile);
+        if (!file.delete()) {
+            Log.w(TAG, "Could not delete original after encrypt: " + file);
+        }
     }
 
     private void processEncrypt(File file) throws Exception {

@@ -37,10 +37,15 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.rulerhao.media_protector.crypto.HeaderObfuscator;
+import com.rulerhao.media_protector.data.AlbumManager;
 import com.rulerhao.media_protector.data.FileConfig;
 import com.rulerhao.media_protector.util.EncryptedMediaDataSource;
+import com.rulerhao.media_protector.util.OriginalPathStore;
 import com.rulerhao.media_protector.util.ThemeHelper;
 import com.rulerhao.media_protector.util.ThumbnailLoader;
+
+import android.app.AlertDialog;
+import android.widget.EditText;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -110,6 +115,7 @@ public class MediaViewerActivity extends Activity implements TextureView.Surface
 
     // ── Crypto ───────────────────────────────────────────────────────────────
     private Button btnCrypto;
+    private Button btnMoveToAlbum;
     private final HeaderObfuscator obfuscator = new HeaderObfuscator();
     private volatile boolean cryptoInProgress = false;
 
@@ -168,7 +174,21 @@ public class MediaViewerActivity extends Activity implements TextureView.Surface
         btnBack.setOnClickListener(v -> finish());
 
         btnCrypto = findViewById(R.id.btnCrypto);
-        btnCrypto.setOnClickListener(v -> performCrypto());
+        btnCrypto.setOnClickListener(v -> {
+            if (encrypted) {
+                // Decrypt directly
+                performCrypto();
+            } else {
+                // Encrypt - show album selection dialog
+                showEncryptToAlbumDialog();
+            }
+        });
+
+        // Move to Album button (only visible for encrypted files)
+        btnMoveToAlbum = findViewById(R.id.btnMoveToAlbum);
+        if (btnMoveToAlbum != null) {
+            btnMoveToAlbum.setOnClickListener(v -> showMoveToAlbumDialog());
+        }
 
         ImageButton btnInfo = findViewById(R.id.btnInfo);
         btnInfo.setOnClickListener(v -> showFileInfo());
@@ -371,6 +391,7 @@ public class MediaViewerActivity extends Activity implements TextureView.Surface
 
         // Update crypto button text based on current mode
         updateCryptoButton();
+        updateMoveButtonVisibility();
 
         // Update filmstrip selection and scroll it into view.
         updateThumbnailSelection(currentIndex);
@@ -1007,5 +1028,308 @@ public class MediaViewerActivity extends Activity implements TextureView.Surface
         // Rebuild strip and load new current file
         rebuildThumbnailStrip();
         loadCurrentMedia();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Album dialogs
+    // ─────────────────────────────────────────────────────────────────────
+
+    /**
+     * Shows album selection dialog for encrypting the current file.
+     */
+    private void showEncryptToAlbumDialog() {
+        if (mediaFile == null || encrypted) return;
+
+        File protectedRoot = FileConfig.getProtectedFolder();
+        List<File> albumDirs = AlbumManager.getAlbumDirs(protectedRoot);
+
+        List<String> options = new java.util.ArrayList<>();
+        options.add(getString(R.string.encrypt_to_main));       // "Main Collection"
+        for (File dir : albumDirs) options.add(dir.getName());
+        options.add(getString(R.string.album_create));          // "New Album"
+
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.encrypt_to_album_title)
+                .setItems(options.toArray(new String[0]), (dialog, which) -> {
+                    if (which == 0) {
+                        // Encrypt to main protected folder
+                        performCrypto();
+                    } else if (which == options.size() - 1) {
+                        // Create new album and encrypt to it
+                        showCreateAlbumForEncryptDialog();
+                    } else {
+                        // Encrypt to selected album
+                        File targetAlbum = albumDirs.get(which - 1);
+                        performEncryptToAlbum(targetAlbum);
+                    }
+                })
+                .setNegativeButton(R.string.btn_cancel, null)
+                .show();
+    }
+
+    /**
+     * Shows dialog to create a new album and encrypt the current file into it.
+     */
+    private void showCreateAlbumForEncryptDialog() {
+        EditText input = new EditText(this);
+        input.setHint(R.string.album_name_hint);
+        input.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+                | android.text.InputType.TYPE_TEXT_FLAG_CAP_WORDS);
+        LinearLayout container = new LinearLayout(this);
+        container.setPadding(48, 32, 48, 0);
+        container.addView(input);
+
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.album_create_title)
+                .setView(container)
+                .setPositiveButton(R.string.btn_create, (d, which) -> {
+                    String name = input.getText().toString().trim();
+                    if (!AlbumManager.isValidName(name)) return;
+                    File protectedRoot = FileConfig.getProtectedFolder();
+                    if (AlbumManager.albumExists(protectedRoot, name)) {
+                        Toast.makeText(this, R.string.album_exists, Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    File newAlbum = AlbumManager.createAlbum(protectedRoot, name);
+                    if (newAlbum == null) {
+                        Toast.makeText(this, R.string.error_generic, Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    Toast.makeText(this, R.string.album_created, Toast.LENGTH_SHORT).show();
+                    performEncryptToAlbum(newAlbum);
+                })
+                .setNegativeButton(R.string.btn_cancel, null)
+                .show();
+    }
+
+    /**
+     * Encrypts the current file to a specific album folder.
+     */
+    private void performEncryptToAlbum(File targetAlbum) {
+        if (cryptoInProgress || mediaFile == null || encrypted) return;
+
+        cryptoInProgress = true;
+        btnCrypto.setEnabled(false);
+
+        // Stop video playback
+        if (isVideoMode && mediaPlayer != null) {
+            if (mediaPlayer.isPlaying()) {
+                mediaPlayer.pause();
+                btnPlayPause.setImageResource(android.R.drawable.ic_media_play);
+                stopSeekTicks();
+            }
+        }
+        releasePlayer();
+
+        final File sourceFile = mediaFile;
+
+        ioExecutor.execute(() -> {
+            File newFile = null;
+            boolean success = false;
+            try {
+                // Create encrypted file in target album
+                String encryptedName = sourceFile.getName() + FileConfig.ENCRYPTED_EXTENSION;
+                newFile = new File(targetAlbum, encryptedName);
+                // Handle duplicates
+                if (newFile.exists()) {
+                    String base = sourceFile.getName();
+                    String ext = FileConfig.ENCRYPTED_EXTENSION;
+                    int counter = 1;
+                    while (newFile.exists()) {
+                        newFile = new File(targetAlbum, base + "(" + counter + ")" + ext);
+                        counter++;
+                    }
+                }
+
+                // Store original path
+                OriginalPathStore.storePath(this, newFile.getName(), sourceFile.getAbsolutePath());
+
+                obfuscator.encrypt(sourceFile, newFile);
+                sourceFile.delete();
+                success = true;
+            } catch (Exception e) {
+                // Crypto failed
+            }
+
+            final boolean opSuccess = success;
+            final String originalPath = sourceFile.getAbsolutePath();
+
+            mainHandler.post(() -> {
+                cryptoInProgress = false;
+
+                if (opSuccess) {
+                    processedFiles.add(originalPath);
+                    Toast.makeText(this, R.string.toast_encrypted, Toast.LENGTH_SHORT).show();
+                    removeCurrentAndNavigate();
+                } else {
+                    btnCrypto.setEnabled(true);
+                    Toast.makeText(this, R.string.error_generic, Toast.LENGTH_SHORT).show();
+                }
+            });
+        });
+    }
+
+    /**
+     * Shows dialog to move the current protected file to another album.
+     */
+    private void showMoveToAlbumDialog() {
+        if (mediaFile == null || !encrypted) return;
+
+        File protectedRoot = FileConfig.getProtectedFolder();
+        List<File> albumDirs = AlbumManager.getAlbumDirs(protectedRoot);
+
+        // Determine current album (if any)
+        File currentParent = mediaFile.getParentFile();
+        boolean inAlbum = currentParent != null && !currentParent.equals(protectedRoot);
+
+        List<String> options = new java.util.ArrayList<>();
+        options.add(getString(R.string.album_create));          // "New Album"
+        for (File dir : albumDirs) {
+            // Skip current album
+            if (!dir.equals(currentParent)) {
+                options.add(dir.getName());
+            }
+        }
+        if (inAlbum) {
+            options.add(getString(R.string.move_to_main));      // "Main Collection"
+        }
+
+        // Build parallel list of target directories
+        List<File> targetDirs = new java.util.ArrayList<>();
+        targetDirs.add(null); // New Album placeholder
+        for (File dir : albumDirs) {
+            if (!dir.equals(currentParent)) {
+                targetDirs.add(dir);
+            }
+        }
+        if (inAlbum) {
+            targetDirs.add(protectedRoot); // Main collection
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.album_move_to)
+                .setItems(options.toArray(new String[0]), (dialog, which) -> {
+                    if (which == 0) {
+                        // Create new album
+                        showCreateAlbumForMoveDialog();
+                    } else {
+                        File targetDir = targetDirs.get(which);
+                        performMoveToAlbum(targetDir);
+                    }
+                })
+                .setNegativeButton(R.string.btn_cancel, null)
+                .show();
+    }
+
+    /**
+     * Shows dialog to create a new album and move the current file into it.
+     */
+    private void showCreateAlbumForMoveDialog() {
+        EditText input = new EditText(this);
+        input.setHint(R.string.album_name_hint);
+        input.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+                | android.text.InputType.TYPE_TEXT_FLAG_CAP_WORDS);
+        LinearLayout container = new LinearLayout(this);
+        container.setPadding(48, 32, 48, 0);
+        container.addView(input);
+
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.album_create_title)
+                .setView(container)
+                .setPositiveButton(R.string.btn_create, (d, which) -> {
+                    String name = input.getText().toString().trim();
+                    if (!AlbumManager.isValidName(name)) return;
+                    File protectedRoot = FileConfig.getProtectedFolder();
+                    if (AlbumManager.albumExists(protectedRoot, name)) {
+                        Toast.makeText(this, R.string.album_exists, Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    File newAlbum = AlbumManager.createAlbum(protectedRoot, name);
+                    if (newAlbum == null) {
+                        Toast.makeText(this, R.string.error_generic, Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    Toast.makeText(this, R.string.album_created, Toast.LENGTH_SHORT).show();
+                    performMoveToAlbum(newAlbum);
+                })
+                .setNegativeButton(R.string.btn_cancel, null)
+                .show();
+    }
+
+    /**
+     * Moves the current protected file to the target album directory.
+     */
+    private void performMoveToAlbum(File targetDir) {
+        if (mediaFile == null || !encrypted) return;
+
+        // Stop video playback
+        if (isVideoMode && mediaPlayer != null) {
+            if (mediaPlayer.isPlaying()) {
+                mediaPlayer.pause();
+                btnPlayPause.setImageResource(android.R.drawable.ic_media_play);
+                stopSeekTicks();
+            }
+        }
+        releasePlayer();
+
+        final File sourceFile = mediaFile;
+
+        ioExecutor.execute(() -> {
+            boolean success = false;
+            File destFile = null;
+            try {
+                targetDir.mkdirs();
+                destFile = new File(targetDir, sourceFile.getName());
+                // Handle duplicates
+                if (destFile.exists()) {
+                    String name = sourceFile.getName();
+                    String base, ext;
+                    int dot = name.lastIndexOf('.');
+                    if (dot > 0) {
+                        base = name.substring(0, dot);
+                        ext = name.substring(dot);
+                    } else {
+                        base = name;
+                        ext = "";
+                    }
+                    int counter = 1;
+                    while (destFile.exists()) {
+                        destFile = new File(targetDir, base + "(" + counter + ")" + ext);
+                        counter++;
+                    }
+                }
+                success = sourceFile.renameTo(destFile);
+            } catch (Exception e) {
+                success = false;
+            }
+
+            final boolean opSuccess = success;
+            final File newFile = destFile;
+            final String originalPath = sourceFile.getAbsolutePath();
+
+            mainHandler.post(() -> {
+                if (opSuccess && newFile != null) {
+                    processedFiles.add(originalPath);
+                    Toast.makeText(this, R.string.album_moved,
+                            Toast.LENGTH_SHORT).show();
+                    // Update file list with new path
+                    fileList[currentIndex] = newFile.getAbsolutePath();
+                    mediaFile = newFile;
+                    // Refresh display
+                    loadCurrentMedia();
+                } else {
+                    Toast.makeText(this, R.string.error_generic, Toast.LENGTH_SHORT).show();
+                }
+            });
+        });
+    }
+
+    /**
+     * Updates the visibility of the Move to Album button based on encryption state.
+     */
+    private void updateMoveButtonVisibility() {
+        if (btnMoveToAlbum != null) {
+            btnMoveToAlbum.setVisibility(encrypted ? View.VISIBLE : View.GONE);
+        }
     }
 }

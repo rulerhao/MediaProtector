@@ -217,6 +217,23 @@ public class MainPresenter implements MainContract.Presenter {
         });
     }
 
+    @Override
+    public void moveToAlbum(List<File> files, File targetDir) {
+        if (files.isEmpty() || operationInProgress) return;
+        operationInProgress = true;
+        selectedFiles.clear();
+        withView(v -> v.updateSelectionMode(false, 0));
+
+        repository.moveFiles(files, targetDir, new MediaRepository.OperationCallback() {
+            @Override public void onProgress(int done, int total, String fn, long bp, long bt) {}
+            @Override
+            public void onComplete(int succeeded, int failed) {
+                operationInProgress = false;
+                postIfAlive(MainPresenter.this::loadMedia);
+            }
+        });
+    }
+
     // -------------------------------------------------------------------------
     // Load / Sort / Folder
     // -------------------------------------------------------------------------

@@ -58,5 +58,7 @@ public interface MainContract {
 
         /** Export selected encrypted files as decrypted copies to a destination folder. */
         void exportSelected(java.io.File destFolder);
+
+        void moveToAlbum(List<File> files, File targetDir);
     }
 }

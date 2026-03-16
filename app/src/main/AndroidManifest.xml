@@ -51,7 +51,7 @@
         <!-- Notes disguise launcher -->
         <activity-alias
             android:name=".MainActivityNotes"
-            android:targetActivity=".DecoyCalculatorActivity"
+            android:targetActivity=".DecoyNotesActivity"
             android:exported="true"
             android:enabled="false"
             android:icon="@drawable/ic_disguise_notes"
@@ -65,7 +65,7 @@
         <!-- Weather disguise launcher -->
         <activity-alias
             android:name=".MainActivityWeather"
-            android:targetActivity=".DecoyCalculatorActivity"
+            android:targetActivity=".DecoyWeatherActivity"
             android:exported="true"
             android:enabled="false"
             android:icon="@drawable/ic_disguise_weather"
@@ -84,6 +84,12 @@
             android:name=".DecoyCalculatorActivity"
             android:exported="false"
             android:theme="@style/Theme.Minimal.Dark" />
+        <activity
+            android:name=".DecoyNotesActivity"
+            android:exported="false" />
+        <activity
+            android:name=".DecoyWeatherActivity"
+            android:exported="false" />
         <activity
             android:name=".MediaViewerActivity"
             android:exported="false"

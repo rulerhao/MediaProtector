@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?android:attr/colorBackground"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- Toolbar: location button + city name -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:orientation="horizontal"
+            android:background="?attr/colorToolbar"
+            android:gravity="center_vertical"
+            android:paddingStart="8dp"
+            android:paddingEnd="16dp">
+
+            <ImageButton
+                android:id="@+id/btnWeatherLocation"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@drawable/ic_location"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:tint="?attr/colorToolbarIcon"
+                android:contentDescription="Change location" />
+
+            <TextView
+                android:id="@+id/tvWeatherCity"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="My Location"
+                android:textSize="20sp"
+                android:textColor="?attr/colorToolbarText"
+                android:paddingStart="4dp" />
+
+        </LinearLayout>
+
+        <!-- Date -->
+        <TextView
+            android:id="@+id/tvWeatherDate"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="24dp"
+            android:paddingStart="24dp"
+            android:paddingEnd="24dp"
+            android:textSize="14sp"
+            android:textColor="?android:attr/textColorSecondary" />
+
+        <!-- Big temperature -->
+        <TextView
+            android:id="@+id/tvWeatherTemp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp"
+            android:textSize="96sp"
+            android:gravity="center"
+            android:textColor="?android:attr/textColorPrimary" />
+
+        <!-- Condition -->
+        <TextView
+            android:id="@+id/tvWeatherCondition"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="22sp"
+            android:gravity="center"
+            android:textColor="?android:attr/textColorSecondary" />
+
+        <!-- High / Low -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:paddingTop="8dp"
+            android:paddingBottom="24dp">
+
+            <TextView
+                android:id="@+id/tvWeatherHigh"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="18sp"
+                android:textColor="?android:attr/textColorPrimary" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="  |  "
+                android:textSize="18sp"
+                android:textColor="?android:attr/textColorSecondary" />
+
+            <TextView
+                android:id="@+id/tvWeatherLow"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="18sp"
+                android:textColor="?android:attr/textColorPrimary" />
+
+        </LinearLayout>
+
+        <!-- Divider -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:background="?attr/colorDivider" />
+
+        <!-- Forecast rows -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp">
+            <TextView android:id="@+id/tvForecastDay0"  android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:textSize="15sp" android:textColor="?android:attr/textColorPrimary" />
+            <TextView android:id="@+id/tvForecastCond0" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="2" android:textSize="14sp" android:textColor="?android:attr/textColorSecondary" android:gravity="center" />
+            <TextView android:id="@+id/tvForecastLow0"  android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:textSize="15sp" android:textColor="?android:attr/textColorSecondary" android:gravity="end" />
+            <TextView android:id="@+id/tvForecastHigh0" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:textSize="15sp" android:textColor="?android:attr/textColorPrimary" android:gravity="end" />
+        </LinearLayout>
+
+        <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginStart="16dp" android:layout_marginEnd="16dp" android:background="?attr/colorDivider" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp">
+            <TextView android:id="@+id/tvForecastDay1"  android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:textSize="15sp" android:textColor="?android:attr/textColorPrimary" />
+            <TextView android:id="@+id/tvForecastCond1" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="2" android:textSize="14sp" android:textColor="?android:attr/textColorSecondary" android:gravity="center" />
+            <TextView android:id="@+id/tvForecastLow1"  android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:textSize="15sp" android:textColor="?android:attr/textColorSecondary" android:gravity="end" />
+            <TextView android:id="@+id/tvForecastHigh1" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:textSize="15sp" android:textColor="?android:attr/textColorPrimary" android:gravity="end" />
+        </LinearLayout>
+
+        <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginStart="16dp" android:layout_marginEnd="16dp" android:background="?attr/colorDivider" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp">
+            <TextView android:id="@+id/tvForecastDay2"  android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:textSize="15sp" android:textColor="?android:attr/textColorPrimary" />
+            <TextView android:id="@+id/tvForecastCond2" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="2" android:textSize="14sp" android:textColor="?android:attr/textColorSecondary" android:gravity="center" />
+            <TextView android:id="@+id/tvForecastLow2"  android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:textSize="15sp" android:textColor="?android:attr/textColorSecondary" android:gravity="end" />
+            <TextView android:id="@+id/tvForecastHigh2" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:textSize="15sp" android:textColor="?android:attr/textColorPrimary" android:gravity="end" />
+        </LinearLayout>
+
+        <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginStart="16dp" android:layout_marginEnd="16dp" android:background="?attr/colorDivider" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp">
+            <TextView android:id="@+id/tvForecastDay3"  android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:textSize="15sp" android:textColor="?android:attr/textColorPrimary" />
+            <TextView android:id="@+id/tvForecastCond3" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="2" android:textSize="14sp" android:textColor="?android:attr/textColorSecondary" android:gravity="center" />
+            <TextView android:id="@+id/tvForecastLow3"  android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:textSize="15sp" android:textColor="?android:attr/textColorSecondary" android:gravity="end" />
+            <TextView android:id="@+id/tvForecastHigh3" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:textSize="15sp" android:textColor="?android:attr/textColorPrimary" android:gravity="end" />
+        </LinearLayout>
+
+        <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginStart="16dp" android:layout_marginEnd="16dp" android:background="?attr/colorDivider" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp">
+            <TextView android:id="@+id/tvForecastDay4"  android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:textSize="15sp" android:textColor="?android:attr/textColorPrimary" />
+            <TextView android:id="@+id/tvForecastCond4" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="2" android:textSize="14sp" android:textColor="?android:attr/textColorSecondary" android:gravity="center" />
+            <TextView android:id="@+id/tvForecastLow4"  android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:textSize="15sp" android:textColor="?android:attr/textColorSecondary" android:gravity="end" />
+            <TextView android:id="@+id/tvForecastHigh4" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:textSize="15sp" android:textColor="?android:attr/textColorPrimary" android:gravity="end" />
+        </LinearLayout>
+
+        <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginStart="16dp" android:layout_marginEnd="16dp" android:background="?attr/colorDivider" />
+
+    </LinearLayout>
+
+</ScrollView>

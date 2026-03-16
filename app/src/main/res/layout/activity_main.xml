@@ -6,6 +6,61 @@
     android:background="?android:attr/colorBackground">
 
 
+    <!-- ===== Album view title bar (Protected tab, album grid mode) ===== -->
+    <LinearLayout
+        android:id="@+id/albumBar"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:orientation="horizontal"
+        android:background="?attr/colorSurface"
+        android:paddingStart="16dp"
+        android:paddingEnd="8dp"
+        android:gravity="center_vertical"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Protected"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="?android:attr/textColorPrimary" />
+
+    </LinearLayout>
+
+    <!-- ===== Album breadcrumb bar (shown when browsing a specific album) ===== -->
+    <LinearLayout
+        android:id="@+id/albumBreadcrumbBar"
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:orientation="horizontal"
+        android:background="?attr/colorSurface"
+        android:gravity="center_vertical"
+        android:visibility="gone">
+
+        <ImageButton
+            android:id="@+id/btnBackToAlbums"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@drawable/ic_back"
+            android:tint="@color/tab_indicator"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Back to albums" />
+
+        <TextView
+            android:id="@+id/tvAlbumBreadcrumb"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textSize="14sp"
+            android:textColor="?android:attr/textColorPrimary"
+            android:paddingStart="4dp"
+            android:ellipsize="end"
+            android:maxLines="1" />
+
+    </LinearLayout>
+
     <!-- ===== Search/Selection bar (visible in Protected mode) ===== -->
     <LinearLayout
         android:id="@+id/searchBar"
@@ -169,6 +224,18 @@
                 android:background="?android:attr/colorBackground" />
 
         </com.rulerhao.media_protector.util.PullToRefreshLayout>
+
+        <!-- Album grid (visible in Protected tab, album view mode) -->
+        <GridView
+            android:id="@+id/albumGridView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:numColumns="2"
+            android:horizontalSpacing="2dp"
+            android:verticalSpacing="2dp"
+            android:stretchMode="columnWidth"
+            android:padding="2dp"
+            android:visibility="gone" />
 
         <!-- Skeleton loading view (shimmer effect) -->
         <com.rulerhao.media_protector.util.SkeletonView
@@ -659,6 +726,17 @@
             android:textColor="?android:attr/textColorPrimary"
             android:textSize="13sp"
             android:background="?android:attr/selectableItemBackground" />
+
+        <Button
+            android:id="@+id/btnMoveToAlbum"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:text="Move"
+            android:textColor="?android:attr/textColorPrimary"
+            android:textSize="13sp"
+            android:background="?android:attr/selectableItemBackground"
+            android:visibility="gone" />
 
         <Button
             android:id="@+id/btnExport"

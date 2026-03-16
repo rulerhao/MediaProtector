@@ -313,6 +313,32 @@ public class MediaRepository {
         cryptoExecutor.shutdownNow();
     }
 
+    /**
+     * Moves files to the target directory using filesystem rename (fast, no re-encryption needed).
+     */
+    public void moveFiles(List<File> files, File targetDir, OperationCallback callback) {
+        cryptoExecutor.execute(() -> {
+            int succeeded = 0, failed = 0;
+            targetDir.mkdirs();
+            for (File file : files) {
+                try {
+                    File dest = getUniqueFile(new File(targetDir, file.getName()));
+                    if (file.renameTo(dest)) {
+                        succeeded++;
+                    } else {
+                        Log.w(TAG, "Failed to move: " + file);
+                        failed++;
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Move failed: " + file, e);
+                    failed++;
+                }
+            }
+            final int s = succeeded, f = failed;
+            callback.onComplete(s, f);
+        });
+    }
+
     // -------------------------------------------------------------------------
     // Unified recursive traversal (replaces scanRecursiveInternal + hasMediaFilesInternal)
     // -------------------------------------------------------------------------

@@ -7,7 +7,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 
-import com.rulerhao.media_protector.util.DisguiseHelper;
+import com.rulerhao.media_protector.util.SecurityHelper;
 import com.rulerhao.media_protector.util.ThemeHelper;
 
 /**
@@ -100,16 +100,16 @@ public class DecoyCalculatorActivity extends Activity {
     }
 
     private void onEqualsPress() {
-        // Check if secret code was entered
-        String secretCode = DisguiseHelper.getSecretCode(this);
-        String currentDisplay = currentInput.toString();
-
-        // Check both the secret buffer (for continuous typing) and current display
-        if (secretBuffer.toString().endsWith(secretCode) ||
-            currentDisplay.equals(secretCode)) {
-            // Secret code entered! Launch real app
-            launchRealApp();
-            return;
+        // Check if the input ends with the PIN code
+        if (SecurityHelper.isPinEnabled(this)) {
+            String buffer = secretBuffer.toString();
+            for (int len = 1; len <= buffer.length(); len++) {
+                String suffix = buffer.substring(buffer.length() - len);
+                if (SecurityHelper.verifyPin(this, suffix)) {
+                    launchRealApp();
+                    return;
+                }
+            }
         }
 
         if (pendingOperator != null) {

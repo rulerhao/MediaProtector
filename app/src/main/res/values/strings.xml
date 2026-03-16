@@ -142,4 +142,21 @@
     <string name="btn_cancel">Cancel</string>
     <string name="btn_create">Create</string>
     <string name="btn_ok">OK</string>
+
+    <!-- Disguise settings -->
+    <string name="settings_disguise">Disguise</string>
+    <string name="settings_disguise_mode">Disguise mode</string>
+    <string name="settings_disguise_mode_desc">App appears as a different app to others</string>
+    <string name="settings_disguise_type">Disguise as</string>
+    <string name="settings_secret_code">Secret code</string>
+    <string name="settings_secret_code_desc">Enter this code in the calculator to unlock</string>
+    <string name="toast_disguise_enabled">Disguise mode enabled. App will appear as %s</string>
+    <string name="toast_disguise_disabled">Disguise mode disabled</string>
+    <string name="toast_secret_code_updated">Secret code updated</string>
+    <string name="dialog_secret_code_title">Set Secret Code</string>
+    <string name="dialog_secret_code_hint">Enter 4-8 digit code</string>
+    <string name="dialog_secret_code_error">Code must be 4-8 digits</string>
+    <string name="disguise_calculator">Calculator</string>
+    <string name="disguise_notes">My Notes</string>
+    <string name="disguise_weather">Weather</string>
 </resources>

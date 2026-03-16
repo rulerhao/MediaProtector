@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Notepad background -->
+    <path
+        android:pathData="M24,18h60c2.2,0 4,1.8 4,4v64c0,2.2 -1.8,4 -4,4H24c-2.2,0 -4,-1.8 -4,-4V22c0,-2.2 1.8,-4 4,-4z"
+        android:fillColor="#FFC107"/>
+
+    <!-- Paper white area -->
+    <path
+        android:pathData="M28,26h52v56H28z"
+        android:fillColor="#FFFFFF"/>
+
+    <!-- Lines on paper -->
+    <path android:pathData="M32,36h44" android:strokeColor="#E0E0E0" android:strokeWidth="1"/>
+    <path android:pathData="M32,46h44" android:strokeColor="#E0E0E0" android:strokeWidth="1"/>
+    <path android:pathData="M32,56h44" android:strokeColor="#E0E0E0" android:strokeWidth="1"/>
+    <path android:pathData="M32,66h44" android:strokeColor="#E0E0E0" android:strokeWidth="1"/>
+    <path android:pathData="M32,76h44" android:strokeColor="#E0E0E0" android:strokeWidth="1"/>
+
+    <!-- Some "written" text lines -->
+    <path android:pathData="M32,34h30v3h-30z" android:fillColor="#333333"/>
+    <path android:pathData="M32,44h38v3h-38z" android:fillColor="#333333"/>
+    <path android:pathData="M32,54h25v3h-25z" android:fillColor="#333333"/>
+    <path android:pathData="M32,64h35v3h-35z" android:fillColor="#333333"/>
+
+    <!-- Binding rings -->
+    <path
+        android:pathData="M20,30c0,-2.2 1.8,-4 4,-4s4,1.8 4,4s-1.8,4 -4,4S20,32.2 20,30z"
+        android:fillColor="#757575"/>
+    <path
+        android:pathData="M20,50c0,-2.2 1.8,-4 4,-4s4,1.8 4,4s-1.8,4 -4,4S20,52.2 20,50z"
+        android:fillColor="#757575"/>
+    <path
+        android:pathData="M20,70c0,-2.2 1.8,-4 4,-4s4,1.8 4,4s-1.8,4 -4,4S20,72.2 20,70z"
+        android:fillColor="#757575"/>
+
+</vector>

@@ -31,6 +31,10 @@ import com.rulerhao.media_protector.util.SkeletonView;
 import com.rulerhao.media_protector.util.SwipeableTabLayout;
 import com.rulerhao.media_protector.util.ThemeHelper;
 import com.rulerhao.media_protector.util.ThumbnailLoader;
+import com.rulerhao.media_protector.util.DisguiseHelper;
+
+import android.app.AlertDialog;
+import android.widget.LinearLayout;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -101,6 +105,14 @@ public class MainActivity extends Activity implements MainContract.View {
     private View   autoLockDivider;
     private TextView tvAutoLockValue;
     private Switch switchRestoreLocation;
+    // Disguise settings
+    private Switch switchDisguiseMode;
+    private View   disguiseTypeRow;
+    private View   disguiseTypeDivider;
+    private View   secretCodeRow;
+    private View   secretCodeDivider;
+    private TextView tvDisguiseType;
+    private TextView tvSecretCode;
 
     // ─── Current navigation tab ──────────────────────────────────────────
     private enum NavTab { PROTECTED, ORIGINAL, SETTINGS }
@@ -224,6 +236,14 @@ public class MainActivity extends Activity implements MainContract.View {
         autoLockDivider   = findViewById(R.id.autoLockDivider);
         tvAutoLockValue   = findViewById(R.id.tvAutoLockValue);
         switchRestoreLocation = findViewById(R.id.switchRestoreLocation);
+        // Disguise settings
+        switchDisguiseMode  = findViewById(R.id.switchDisguiseMode);
+        disguiseTypeRow     = findViewById(R.id.disguiseTypeRow);
+        disguiseTypeDivider = findViewById(R.id.disguiseTypeDivider);
+        secretCodeRow       = findViewById(R.id.secretCodeRow);
+        secretCodeDivider   = findViewById(R.id.secretCodeDivider);
+        tvDisguiseType      = findViewById(R.id.tvDisguiseType);
+        tvSecretCode        = findViewById(R.id.tvSecretCode);
 
         // Adapters / presenter
         adapter = new MediaAdapter(this);
@@ -1026,8 +1046,118 @@ public class MainActivity extends Activity implements MainContract.View {
         // Auto-lock timeout row click
         autoLockRow.setOnClickListener(v -> showAutoLockTimeoutDialog());
 
+        // Disguise mode switch
+        switchDisguiseMode.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            DisguiseHelper.setDisguiseEnabled(this, isChecked);
+            if (isChecked) {
+                DisguiseHelper.DisguiseType type = DisguiseHelper.getDisguiseType(this);
+                DisguiseHelper.applyDisguise(this, type);
+                Toast.makeText(this,
+                        getString(R.string.toast_disguise_enabled, type.displayName),
+                        Toast.LENGTH_SHORT).show();
+            } else {
+                DisguiseHelper.applyDisguise(this, DisguiseHelper.DisguiseType.NONE);
+                Toast.makeText(this, R.string.toast_disguise_disabled, Toast.LENGTH_SHORT).show();
+            }
+            refreshDisguiseSettingsUI();
+        });
+
+        // Disguise type row click
+        disguiseTypeRow.setOnClickListener(v -> showDisguiseTypeDialog());
+
+        // Secret code row click
+        secretCodeRow.setOnClickListener(v -> showSecretCodeDialog());
+
         // Initial state
         refreshSecuritySettingsUI();
+        refreshDisguiseSettingsUI();
+    }
+
+    private void refreshDisguiseSettingsUI() {
+        boolean disguiseEnabled = DisguiseHelper.isDisguiseEnabled(this);
+        switchDisguiseMode.setChecked(disguiseEnabled);
+
+        // Show/hide disguise options
+        int visibility = disguiseEnabled ? View.VISIBLE : View.GONE;
+        disguiseTypeRow.setVisibility(visibility);
+        disguiseTypeDivider.setVisibility(visibility);
+        secretCodeRow.setVisibility(visibility);
+        secretCodeDivider.setVisibility(visibility);
+
+        if (disguiseEnabled) {
+            tvDisguiseType.setText(DisguiseHelper.getDisguiseType(this).displayName);
+            tvSecretCode.setText(maskSecretCode(DisguiseHelper.getSecretCode(this)));
+        }
+    }
+
+    private String maskSecretCode(String code) {
+        // Show last 2 digits, mask rest
+        if (code.length() <= 2) return code;
+        StringBuilder masked = new StringBuilder();
+        for (int i = 0; i < code.length() - 2; i++) {
+            masked.append("•");
+        }
+        masked.append(code.substring(code.length() - 2));
+        return masked.toString();
+    }
+
+    private void showDisguiseTypeDialog() {
+        DisguiseHelper.DisguiseType[] types = DisguiseHelper.getAvailableDisguises();
+        String[] names = DisguiseHelper.getDisguiseNames();
+
+        DisguiseHelper.DisguiseType currentType = DisguiseHelper.getDisguiseType(this);
+        int selectedIndex = 0;
+        for (int i = 0; i < types.length; i++) {
+            if (types[i] == currentType) {
+                selectedIndex = i;
+                break;
+            }
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.settings_disguise_type)
+                .setSingleChoiceItems(names, selectedIndex, (dialog, which) -> {
+                    DisguiseHelper.DisguiseType type = types[which];
+                    DisguiseHelper.setDisguiseType(this, type);
+                    DisguiseHelper.applyDisguise(this, type);
+                    tvDisguiseType.setText(type.displayName);
+                    Toast.makeText(this,
+                            getString(R.string.toast_disguise_enabled, type.displayName),
+                            Toast.LENGTH_SHORT).show();
+                    dialog.dismiss();
+                })
+                .setNegativeButton(R.string.btn_cancel, null)
+                .show();
+    }
+
+    private void showSecretCodeDialog() {
+        EditText input = new EditText(this);
+        input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        input.setHint(R.string.dialog_secret_code_hint);
+        input.setText(DisguiseHelper.getSecretCode(this));
+
+        // Wrap in LinearLayout for padding
+        LinearLayout container = new LinearLayout(this);
+        container.setPadding(48, 32, 48, 0);
+        container.addView(input);
+
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.dialog_secret_code_title)
+                .setView(container)
+                .setPositiveButton(R.string.btn_ok, (dialog, which) -> {
+                    String code = input.getText().toString().trim();
+                    if (code.length() >= 4 && code.length() <= 8) {
+                        DisguiseHelper.setSecretCode(this, code);
+                        tvSecretCode.setText(maskSecretCode(code));
+                        Toast.makeText(this, R.string.toast_secret_code_updated,
+                                Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(this, R.string.dialog_secret_code_error,
+                                Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNegativeButton(R.string.btn_cancel, null)
+                .show();
     }
 
     private void showAutoLockTimeoutDialog() {

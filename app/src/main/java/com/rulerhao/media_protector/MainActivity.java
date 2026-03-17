@@ -1165,6 +1165,12 @@ public class MainActivity extends Activity implements MainContract.View {
 
     /** Rebuilds the album grid from the current allProtectedFiles list. */
     private void buildAndShowAlbumGrid() {
+        albumBar.setVisibility(View.VISIBLE);
+        albumGridView.setVisibility(View.VISIBLE);
+        pullToRefreshProtected.setVisibility(View.GONE);
+        albumBreadcrumbBar.setVisibility(View.GONE);
+        searchBar.setVisibility(View.GONE);
+
         File protectedRoot = FileConfig.getProtectedFolder();
         List<AlbumAdapter.AlbumItem> items = new ArrayList<>();
 

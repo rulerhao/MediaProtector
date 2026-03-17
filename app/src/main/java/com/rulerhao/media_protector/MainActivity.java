@@ -51,6 +51,8 @@ import android.widget.ImageButton;
 import com.rulerhao.media_protector.crypto.HeaderObfuscator;
 import com.rulerhao.media_protector.data.AlbumManager;
 import com.rulerhao.media_protector.data.FileConfig;
+import com.rulerhao.media_protector.data.MediaFilter;
+import com.rulerhao.media_protector.data.SortOption;
 
 public class MainActivity extends Activity implements MainContract.View {
 
@@ -176,7 +178,6 @@ public class MainActivity extends Activity implements MainContract.View {
     private ImageButton btnAddAlbum;
 
     // ─── Sort options ────────────────────────────────────────────────────
-    private enum SortOption { NAME_ASC, NAME_DESC, DATE_ASC, DATE_DESC, SIZE_ASC, SIZE_DESC }
     private SortOption currentSortOption = SortOption.DATE_DESC;
     private ImageButton btnSort;
 
@@ -1474,29 +1475,6 @@ public class MainActivity extends Activity implements MainContract.View {
     }
 
     private void sortAndDisplayFiles() {
-        if (allProtectedFiles.isEmpty()) return;
-
-        java.util.Collections.sort(allProtectedFiles, (f1, f2) -> {
-            switch (currentSortOption) {
-                case NAME_ASC:
-                    return HeaderObfuscator.getOriginalName(f1)
-                            .compareToIgnoreCase(HeaderObfuscator.getOriginalName(f2));
-                case NAME_DESC:
-                    return HeaderObfuscator.getOriginalName(f2)
-                            .compareToIgnoreCase(HeaderObfuscator.getOriginalName(f1));
-                case DATE_ASC:
-                    return Long.compare(f1.lastModified(), f2.lastModified());
-                case DATE_DESC:
-                    return Long.compare(f2.lastModified(), f1.lastModified());
-                case SIZE_ASC:
-                    return Long.compare(f1.length(), f2.length());
-                case SIZE_DESC:
-                    return Long.compare(f2.length(), f1.length());
-                default:
-                    return 0;
-            }
-        });
-
         filterProtectedFiles();
     }
 
@@ -1582,38 +1560,14 @@ public class MainActivity extends Activity implements MainContract.View {
         }
     }
 
-    /**
-     * Filters the protected files list based on the current search query.
-     */
+    /** Applies album, search, and sort filters then updates the grid adapter. */
     private void filterProtectedFiles() {
-        // Base list: all files or just files in the current album
-        List<File> base;
-        if (currentAlbumDir == null) {
-            base = allProtectedFiles;
-        } else {
-            base = new ArrayList<>();
-            for (File f : allProtectedFiles) {
-                File parent = f.getParentFile();
-                if (parent != null && parent.equals(currentAlbumDir)) {
-                    base.add(f);
-                }
-            }
-        }
-
-        if (currentSearchQuery.isEmpty()) {
-            adapter.setFiles(base);
-            showEmptyState(base.isEmpty(), R.string.label_no_files);
-        } else {
-            List<File> filtered = new ArrayList<>();
-            for (File file : base) {
-                String displayName = HeaderObfuscator.getOriginalName(file).toLowerCase();
-                if (displayName.contains(currentSearchQuery)) {
-                    filtered.add(file);
-                }
-            }
-            adapter.setFiles(filtered);
-            showEmptyState(filtered.isEmpty(), R.string.search_no_results);
-        }
+        List<File> result = MediaFilter.apply(
+                allProtectedFiles, currentAlbumDir, currentSearchQuery, currentSortOption);
+        adapter.setFiles(result);
+        boolean empty = result.isEmpty();
+        showEmptyState(empty, currentSearchQuery.isEmpty()
+                ? R.string.label_no_files : R.string.search_no_results);
     }
 
     private void saveBrowseScrollPosition() {

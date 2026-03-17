@@ -10,12 +10,13 @@
     <LinearLayout
         android:id="@+id/albumBar"
         android:layout_width="match_parent"
-        android:layout_height="48dp"
+        android:layout_height="56dp"
         android:orientation="horizontal"
         android:background="?attr/colorSurface"
         android:paddingStart="16dp"
         android:paddingEnd="8dp"
         android:gravity="center_vertical"
+        android:elevation="2dp"
         android:visibility="gone">
 
         <TextView
@@ -23,9 +24,18 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="Protected"
-            android:textSize="16sp"
+            android:textSize="18sp"
             android:textStyle="bold"
             android:textColor="?android:attr/textColorPrimary" />
+
+        <ImageButton
+            android:id="@+id/btnAddAlbum"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@drawable/ic_add"
+            android:tint="?attr/colorToolbarIcon"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="New Album" />
 
     </LinearLayout>
 
@@ -33,9 +43,10 @@
     <LinearLayout
         android:id="@+id/albumBreadcrumbBar"
         android:layout_width="match_parent"
-        android:layout_height="40dp"
+        android:layout_height="48dp"
         android:orientation="horizontal"
         android:background="?attr/colorSurface"
+        android:elevation="2dp"
         android:gravity="center_vertical"
         android:visibility="gone">
 
@@ -231,10 +242,10 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:numColumns="2"
-            android:horizontalSpacing="2dp"
-            android:verticalSpacing="2dp"
+            android:horizontalSpacing="8dp"
+            android:verticalSpacing="8dp"
             android:stretchMode="columnWidth"
-            android:padding="2dp"
+            android:padding="8dp"
             android:visibility="gone" />
 
         <!-- Skeleton loading view (shimmer effect) -->
@@ -615,7 +626,7 @@
     <LinearLayout
         android:id="@+id/selectionBar"
         android:layout_width="match_parent"
-        android:layout_height="56dp"
+        android:layout_height="60dp"
         android:orientation="horizontal"
         android:background="?attr/colorSurface"
         android:elevation="8dp"
@@ -628,8 +639,14 @@
             android:layout_weight="1"
             android:text="@string/btn_select_all"
             android:textColor="?android:attr/textColorPrimary"
-            android:textSize="13sp"
+            android:textSize="12sp"
             android:background="?android:attr/selectableItemBackground" />
+
+        <View
+            android:layout_width="1dp"
+            android:layout_height="24dp"
+            android:layout_gravity="center_vertical"
+            android:background="?attr/colorDivider" />
 
         <Button
             android:id="@+id/btnMoveToAlbum"
@@ -638,8 +655,16 @@
             android:layout_weight="1"
             android:text="Move"
             android:textColor="?android:attr/textColorPrimary"
-            android:textSize="13sp"
+            android:textSize="12sp"
             android:background="?android:attr/selectableItemBackground"
+            android:visibility="gone" />
+
+        <View
+            android:id="@+id/dividerExport"
+            android:layout_width="1dp"
+            android:layout_height="24dp"
+            android:layout_gravity="center_vertical"
+            android:background="?attr/colorDivider"
             android:visibility="gone" />
 
         <Button
@@ -649,7 +674,7 @@
             android:layout_weight="1"
             android:text="@string/btn_export"
             android:textColor="?android:attr/textColorPrimary"
-            android:textSize="13sp"
+            android:textSize="12sp"
             android:background="?android:attr/selectableItemBackground"
             android:visibility="gone" />
 
@@ -657,11 +682,11 @@
             android:id="@+id/btnEncrypt"
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_weight="2"
+            android:layout_weight="1.5"
             android:text="@string/btn_encrypt_selected"
             android:background="@color/action_encrypt"
             android:textColor="@color/white"
-            android:textSize="14sp"
+            android:textSize="13sp"
             android:textStyle="bold" />
 
     </LinearLayout>
@@ -670,7 +695,7 @@
     <LinearLayout
         android:id="@+id/bottomNavBar"
         android:layout_width="match_parent"
-        android:layout_height="56dp"
+        android:layout_height="64dp"
         android:orientation="horizontal"
         android:background="?attr/colorToolbar"
         android:elevation="8dp">
@@ -694,9 +719,18 @@
                 android:src="@drawable/ic_nav_protected"
                 android:tint="@color/tab_indicator" />
 
+            <TextView
+                android:id="@+id/navProtectedLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Protected"
+                android:textSize="10sp"
+                android:layout_marginTop="3dp"
+                android:textColor="@color/tab_indicator" />
+
         </LinearLayout>
 
-        <!-- Original nav item -->
+        <!-- Browse nav item -->
         <LinearLayout
             android:id="@+id/navOriginal"
             android:layout_width="0dp"
@@ -714,6 +748,15 @@
                 android:layout_height="24dp"
                 android:src="@drawable/ic_nav_original"
                 android:tint="@color/tab_unselected" />
+
+            <TextView
+                android:id="@+id/navOriginalLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Browse"
+                android:textSize="10sp"
+                android:layout_marginTop="3dp"
+                android:textColor="@color/tab_unselected" />
 
         </LinearLayout>
 
@@ -735,6 +778,15 @@
                 android:layout_height="24dp"
                 android:src="@drawable/ic_nav_settings"
                 android:tint="@color/tab_unselected" />
+
+            <TextView
+                android:id="@+id/navSettingsLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Settings"
+                android:textSize="10sp"
+                android:layout_marginTop="3dp"
+                android:textColor="@color/tab_unselected" />
 
         </LinearLayout>
 

@@ -1,21 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="160dp">
+    android:layout_height="160dp"
+    android:foreground="?android:attr/selectableItemBackground">
 
     <ImageView
         android:id="@+id/albumCover"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:scaleType="centerCrop" />
+        android:scaleType="centerCrop"
+        android:background="?attr/colorThumbPlaceholder" />
+
+    <!-- Gradient scrim at bottom -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="80dp"
+        android:layout_gravity="bottom"
+        android:background="@drawable/album_scrim" />
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
         android:orientation="vertical"
-        android:padding="8dp"
-        android:background="#88000000">
+        android:paddingStart="10dp"
+        android:paddingEnd="10dp"
+        android:paddingBottom="10dp"
+        android:paddingTop="4dp">
 
         <TextView
             android:id="@+id/albumName"
@@ -25,14 +36,19 @@
             android:textSize="14sp"
             android:textStyle="bold"
             android:ellipsize="end"
-            android:maxLines="1" />
+            android:maxLines="1"
+            android:shadowColor="#66000000"
+            android:shadowDx="0"
+            android:shadowDy="1"
+            android:shadowRadius="2" />
 
         <TextView
             android:id="@+id/albumCount"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textColor="#BBFFFFFF"
-            android:textSize="12sp" />
+            android:textColor="#CCFFFFFF"
+            android:textSize="11sp"
+            android:layout_marginTop="1dp" />
 
     </LinearLayout>
 

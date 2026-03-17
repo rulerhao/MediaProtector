@@ -93,6 +93,9 @@ public class MainActivity extends Activity implements MainContract.View {
     private ImageView navProtectedIcon;
     private ImageView navOriginalIcon;
     private ImageView navSettingsIcon;
+    private TextView  navProtectedLabel;
+    private TextView  navOriginalLabel;
+    private TextView  navSettingsLabel;
 
     // ─── Settings page ───────────────────────────────────────────────────
     private View   settingsPage;
@@ -121,6 +124,7 @@ public class MainActivity extends Activity implements MainContract.View {
     private Button btnSelectAll;
     private Button btnExport;
     private Button btnEncrypt;
+    private View   dividerExport;
 
     // ─── Empty / progress ─────────────────────────────────────────────────
     private View         emptyStateContainer;
@@ -169,6 +173,7 @@ public class MainActivity extends Activity implements MainContract.View {
     private TextView    tvAlbumBreadcrumb;
     private ImageButton btnBackToAlbums;
     private Button      btnMoveToAlbum;
+    private ImageButton btnAddAlbum;
 
     // ─── Sort options ────────────────────────────────────────────────────
     private enum SortOption { NAME_ASC, NAME_DESC, DATE_ASC, DATE_DESC, SIZE_ASC, SIZE_DESC }
@@ -218,17 +223,21 @@ public class MainActivity extends Activity implements MainContract.View {
         btnSelectAll        = findViewById(R.id.btnSelectAll);
         btnExport           = findViewById(R.id.btnExport);
         btnEncrypt          = findViewById(R.id.btnEncrypt);
+        dividerExport       = findViewById(R.id.dividerExport);
         emptyStateContainer = findViewById(R.id.emptyStateContainer);
         tvEmpty             = findViewById(R.id.tvEmpty);
         skeletonView        = findViewById(R.id.skeletonView);
 
         // Bottom navigation bar
-        navProtected     = findViewById(R.id.navProtected);
-        navOriginal      = findViewById(R.id.navOriginal);
-        navSettings      = findViewById(R.id.navSettings);
-        navProtectedIcon = findViewById(R.id.navProtectedIcon);
-        navOriginalIcon  = findViewById(R.id.navOriginalIcon);
-        navSettingsIcon  = findViewById(R.id.navSettingsIcon);
+        navProtected      = findViewById(R.id.navProtected);
+        navOriginal       = findViewById(R.id.navOriginal);
+        navSettings       = findViewById(R.id.navSettings);
+        navProtectedIcon  = findViewById(R.id.navProtectedIcon);
+        navOriginalIcon   = findViewById(R.id.navOriginalIcon);
+        navSettingsIcon   = findViewById(R.id.navSettingsIcon);
+        navProtectedLabel = findViewById(R.id.navProtectedLabel);
+        navOriginalLabel  = findViewById(R.id.navOriginalLabel);
+        navSettingsLabel  = findViewById(R.id.navSettingsLabel);
 
         // Settings page
         settingsPage      = findViewById(R.id.settingsPage);
@@ -254,6 +263,7 @@ public class MainActivity extends Activity implements MainContract.View {
         tvAlbumBreadcrumb   = findViewById(R.id.tvAlbumBreadcrumb);
         btnBackToAlbums     = findViewById(R.id.btnBackToAlbums);
         btnMoveToAlbum      = findViewById(R.id.btnMoveToAlbum);
+        btnAddAlbum         = findViewById(R.id.btnAddAlbum);
 
         // Adapters / presenter
         adapter = new MediaAdapter(this);
@@ -367,6 +377,8 @@ public class MainActivity extends Activity implements MainContract.View {
         btnBackToAlbums.setOnClickListener(v -> showAlbumView());
 
         btnMoveToAlbum.setOnClickListener(v -> showMoveToAlbumDialog());
+
+        btnAddAlbum.setOnClickListener(v -> showCreateAlbumDialog(null));
 
         // ── Browse sub-tabs ──────────────────────────────────────────────
         btnBrowseModeDate.setOnClickListener(v   -> switchBrowseMode(BrowseMode.DATE));
@@ -825,6 +837,7 @@ public class MainActivity extends Activity implements MainContract.View {
 
         // Show export and move buttons only in Protected mode
         btnExport.setVisibility(showEncrypted ? View.VISIBLE : View.GONE);
+        dividerExport.setVisibility(showEncrypted ? View.VISIBLE : View.GONE);
         btnMoveToAlbum.setVisibility(showEncrypted ? View.VISIBLE : View.GONE);
 
         // Show selection count in toolbar
@@ -1036,6 +1049,10 @@ public class MainActivity extends Activity implements MainContract.View {
         navProtectedIcon.setColorFilter(currentNavTab == NavTab.PROTECTED ? active : inactive);
         navOriginalIcon.setColorFilter(currentNavTab == NavTab.ORIGINAL ? active : inactive);
         navSettingsIcon.setColorFilter(currentNavTab == NavTab.SETTINGS ? active : inactive);
+
+        navProtectedLabel.setTextColor(currentNavTab == NavTab.PROTECTED ? active : inactive);
+        navOriginalLabel.setTextColor(currentNavTab == NavTab.ORIGINAL ? active : inactive);
+        navSettingsLabel.setTextColor(currentNavTab == NavTab.SETTINGS ? active : inactive);
     }
 
     // ─────────────────────────────────────────────────────────────────────

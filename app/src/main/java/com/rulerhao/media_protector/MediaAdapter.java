@@ -67,6 +67,7 @@ public class MediaAdapter extends BaseAdapter {
             holder.filename         = convertView.findViewById(R.id.filename);
             holder.videoBadge       = convertView.findViewById(R.id.videoBadge);
             holder.selectionOverlay = convertView.findViewById(R.id.selectionOverlay);
+            holder.selectionCheck   = convertView.findViewById(R.id.selectionCheck);
             convertView.setTag(holder);
         } else {
             holder = (ViewHolder) convertView.getTag();
@@ -83,10 +84,11 @@ public class MediaAdapter extends BaseAdapter {
         holder.videoBadge.setVisibility(
                 FileConfig.isVideoFile(originalName) ? View.VISIBLE : View.GONE);
 
-        // Show selection overlay instead of alpha-dimming
+        // Show selection overlay and checkmark when selected
         boolean selected = selectedFiles.contains(file);
         holder.thumbnail.setAlpha(1.0f);
         holder.selectionOverlay.setVisibility(selected ? View.VISIBLE : View.GONE);
+        holder.selectionCheck.setVisibility(selected ? View.VISIBLE : View.GONE);
 
         thumbnailLoader.loadThumbnail(file, showEncrypted, holder.thumbnail);
 
@@ -98,5 +100,6 @@ public class MediaAdapter extends BaseAdapter {
         TextView  filename;
         TextView  videoBadge;
         View      selectionOverlay;
+        View      selectionCheck;
     }
 }

@@ -109,12 +109,7 @@ public class MainActivity extends Activity implements MainContract.View {
     private Switch switchRestoreLocation;
     // Disguise settings
     private Switch switchDisguiseMode;
-    private View   disguiseTypeRow;
-    private View   disguiseTypeDivider;
-    private View   secretCodeRow;
-    private View   secretCodeDivider;
-    private TextView tvDisguiseType;
-    private TextView tvSecretCode;
+    private boolean isUpdatingDisguiseSwitch = false;
 
     // ─── Current navigation tab ──────────────────────────────────────────
     private enum NavTab { PROTECTED, ORIGINAL, SETTINGS }
@@ -250,13 +245,7 @@ public class MainActivity extends Activity implements MainContract.View {
         tvAutoLockValue   = findViewById(R.id.tvAutoLockValue);
         switchRestoreLocation = findViewById(R.id.switchRestoreLocation);
         // Disguise settings
-        switchDisguiseMode  = findViewById(R.id.switchDisguiseMode);
-        disguiseTypeRow     = findViewById(R.id.disguiseTypeRow);
-        disguiseTypeDivider = findViewById(R.id.disguiseTypeDivider);
-        secretCodeRow       = findViewById(R.id.secretCodeRow);
-        secretCodeDivider   = findViewById(R.id.secretCodeDivider);
-        tvDisguiseType      = findViewById(R.id.tvDisguiseType);
-        tvSecretCode        = findViewById(R.id.tvSecretCode);
+        switchDisguiseMode = findViewById(R.id.switchDisguiseMode);
 
         // Album views
         albumGridView       = findViewById(R.id.albumGridView);
@@ -1112,27 +1101,21 @@ public class MainActivity extends Activity implements MainContract.View {
         // Auto-lock timeout row click
         autoLockRow.setOnClickListener(v -> showAutoLockTimeoutDialog());
 
-        // Disguise mode switch
+        // Disguise mode switch — show guide first when enabling
         switchDisguiseMode.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            DisguiseHelper.setDisguiseEnabled(this, isChecked);
+            if (isUpdatingDisguiseSwitch) return;
             if (isChecked) {
-                DisguiseHelper.DisguiseType type = DisguiseHelper.getDisguiseType(this);
-                DisguiseHelper.applyDisguise(this, type);
-                Toast.makeText(this,
-                        getString(R.string.toast_disguise_enabled, type.displayName),
-                        Toast.LENGTH_SHORT).show();
+                isUpdatingDisguiseSwitch = true;
+                switchDisguiseMode.setChecked(false);
+                isUpdatingDisguiseSwitch = false;
+                showDisguiseGuideDialog();
             } else {
+                DisguiseHelper.setDisguiseEnabled(this, false);
                 DisguiseHelper.applyDisguise(this, DisguiseHelper.DisguiseType.NONE);
                 Toast.makeText(this, R.string.toast_disguise_disabled, Toast.LENGTH_SHORT).show();
+                refreshDisguiseSettingsUI();
             }
-            refreshDisguiseSettingsUI();
         });
-
-        // Disguise type row click
-        disguiseTypeRow.setOnClickListener(v -> showDisguiseInstructionsDialog());
-
-        // Secret code row click
-        secretCodeRow.setOnClickListener(v -> showSecretCodeDialog());
 
         // Initial state
         refreshSecuritySettingsUI();
@@ -1140,31 +1123,9 @@ public class MainActivity extends Activity implements MainContract.View {
     }
 
     private void refreshDisguiseSettingsUI() {
-        boolean disguiseEnabled = DisguiseHelper.isDisguiseEnabled(this);
-        switchDisguiseMode.setChecked(disguiseEnabled);
-
-        // Show/hide disguise options
-        int visibility = disguiseEnabled ? View.VISIBLE : View.GONE;
-        disguiseTypeRow.setVisibility(visibility);
-        disguiseTypeDivider.setVisibility(visibility);
-        secretCodeRow.setVisibility(visibility);
-        secretCodeDivider.setVisibility(visibility);
-
-        if (disguiseEnabled) {
-            tvDisguiseType.setText(DisguiseHelper.getDisguiseType(this).displayName);
-            tvSecretCode.setText(maskSecretCode(DisguiseHelper.getSecretCode(this)));
-        }
-    }
-
-    private String maskSecretCode(String code) {
-        // Show last 2 digits, mask rest
-        if (code.length() <= 2) return code;
-        StringBuilder masked = new StringBuilder();
-        for (int i = 0; i < code.length() - 2; i++) {
-            masked.append("•");
-        }
-        masked.append(code.substring(code.length() - 2));
-        return masked.toString();
+        isUpdatingDisguiseSwitch = true;
+        switchDisguiseMode.setChecked(DisguiseHelper.isDisguiseEnabled(this));
+        isUpdatingDisguiseSwitch = false;
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -1392,79 +1353,27 @@ public class MainActivity extends Activity implements MainContract.View {
                 .show();
     }
 
-    private void showDisguiseInstructionsDialog() {
+    private void showDisguiseGuideDialog() {
         String message =
-            "After selecting a disguise, use your PIN to access the real app:\n\n" +
-            "\uD83D\uDD22  Calculator\n" +
-            "Type any digits ending with your PIN, then press  =\n" +
-            "e.g. PIN is 1234 \u2192 type 1234 or 991234, then =\n\n" +
-            "\uD83D\uDCDD  Notes\n" +
-            "Tap the search icon, type your PIN, press Search\n\n" +
-            "\u26C5  Weather\n" +
-            "Tap the location icon, type your PIN as a city name, press Set";
+            "Your app icon and name will appear as \"Calculator\" in the launcher.\n\n" +
+            "To open the real app:\n" +
+            "Type any number whose ending matches your PIN, then press  =\n\n" +
+            "Example: PIN is 1234\n" +
+            "Type 1234 =  or  991234 =  to unlock";
 
         new AlertDialog.Builder(this)
-                .setTitle("How to unlock")
+                .setTitle("Calculator disguise")
                 .setMessage(message)
-                .setPositiveButton("Choose disguise", (d, which) -> showDisguiseTypeDialog())
-                .setNegativeButton(R.string.btn_cancel, null)
-                .show();
-    }
-
-    private void showDisguiseTypeDialog() {
-        DisguiseHelper.DisguiseType[] types = DisguiseHelper.getAvailableDisguises();
-        String[] names = DisguiseHelper.getDisguiseNames();
-
-        DisguiseHelper.DisguiseType currentType = DisguiseHelper.getDisguiseType(this);
-        int selectedIndex = 0;
-        for (int i = 0; i < types.length; i++) {
-            if (types[i] == currentType) {
-                selectedIndex = i;
-                break;
-            }
-        }
-
-        new AlertDialog.Builder(this)
-                .setTitle(R.string.settings_disguise_type)
-                .setSingleChoiceItems(names, selectedIndex, (dialog, which) -> {
-                    DisguiseHelper.DisguiseType type = types[which];
-                    DisguiseHelper.setDisguiseType(this, type);
-                    DisguiseHelper.applyDisguise(this, type);
-                    tvDisguiseType.setText(type.displayName);
+                .setPositiveButton("Enable", (d, which) -> {
+                    DisguiseHelper.setDisguiseEnabled(this, true);
+                    DisguiseHelper.applyDisguise(this, DisguiseHelper.DisguiseType.CALCULATOR);
+                    isUpdatingDisguiseSwitch = true;
+                    switchDisguiseMode.setChecked(true);
+                    isUpdatingDisguiseSwitch = false;
                     Toast.makeText(this,
-                            getString(R.string.toast_disguise_enabled, type.displayName),
+                            getString(R.string.toast_disguise_enabled, "Calculator"),
                             Toast.LENGTH_SHORT).show();
-                    dialog.dismiss();
-                })
-                .setNegativeButton(R.string.btn_cancel, null)
-                .show();
-    }
-
-    private void showSecretCodeDialog() {
-        EditText input = new EditText(this);
-        input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
-        input.setHint(R.string.dialog_secret_code_hint);
-        input.setText(DisguiseHelper.getSecretCode(this));
-
-        // Wrap in LinearLayout for padding
-        LinearLayout container = new LinearLayout(this);
-        container.setPadding(48, 32, 48, 0);
-        container.addView(input);
-
-        new AlertDialog.Builder(this)
-                .setTitle(R.string.dialog_secret_code_title)
-                .setView(container)
-                .setPositiveButton(R.string.btn_ok, (dialog, which) -> {
-                    String code = input.getText().toString().trim();
-                    if (code.length() >= 4 && code.length() <= 8) {
-                        DisguiseHelper.setSecretCode(this, code);
-                        tvSecretCode.setText(maskSecretCode(code));
-                        Toast.makeText(this, R.string.toast_secret_code_updated,
-                                Toast.LENGTH_SHORT).show();
-                    } else {
-                        Toast.makeText(this, R.string.dialog_secret_code_error,
-                                Toast.LENGTH_SHORT).show();
-                    }
+                    refreshDisguiseSettingsUI();
                 })
                 .setNegativeButton(R.string.btn_cancel, null)
                 .show();

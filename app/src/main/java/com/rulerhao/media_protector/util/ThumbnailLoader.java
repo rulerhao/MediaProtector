@@ -10,7 +10,6 @@ import android.util.DisplayMetrics;
 import android.util.LruCache;
 import android.widget.ImageView;
 
-import com.rulerhao.media_protector.crypto.HeaderObfuscator;
 import com.rulerhao.media_protector.data.FileConfig;
 
 import java.io.File;
@@ -27,7 +26,7 @@ import java.util.concurrent.Executors;
  * and thread creation.
  *
  * <ul>
- *   <li>For encrypted files, uses {@link HeaderObfuscator#getDecryptedStream} to decode
+ *   <li>For encrypted files, uses {@link FileStreamFactory#createInputStream} to decode
  *       the thumbnail on-the-fly without writing a temporary file.</li>
  *   <li>Uses an {@link ImageView} tag to discard results that arrive for recycled views.</li>
  *   <li>Call {@link #clearCache()} to release cached bitmaps when switching modes.</li>
@@ -96,7 +95,6 @@ public class ThumbnailLoader {
     private final ExecutorService executor = Executors.newFixedThreadPool(THREAD_COUNT);
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final LruCache<String, Bitmap> cache;
-    private final HeaderObfuscator obfuscator = new HeaderObfuscator();
 
     {
         // Initialize cache with dynamic size (defaults to 50 if init() not called)
@@ -150,9 +148,7 @@ public class ThumbnailLoader {
 
     private Bitmap decode(File file, boolean encrypted) {
         // Resolve the original filename so we can detect the media type correctly.
-        String originalName = encrypted
-                ? HeaderObfuscator.getOriginalName(file)
-                : file.getName();
+        String originalName = FileStreamFactory.getOriginalName(file);
 
         if (FileConfig.isVideoFile(originalName)) {
             return decodeVideoFrame(file, encrypted);
@@ -163,13 +159,8 @@ public class ThumbnailLoader {
             // First, decode bounds only to calculate optimal sample size
             BitmapFactory.Options boundsOpts = new BitmapFactory.Options();
             boundsOpts.inJustDecodeBounds = true;
-
-            if (encrypted) {
-                try (InputStream is = obfuscator.getDecryptedStream(file)) {
-                    BitmapFactory.decodeStream(is, null, boundsOpts);
-                }
-            } else {
-                BitmapFactory.decodeFile(file.getAbsolutePath(), boundsOpts);
+            try (InputStream is = FileStreamFactory.createInputStream(file)) {
+                BitmapFactory.decodeStream(is, null, boundsOpts);
             }
 
             // Calculate optimal sample size
@@ -178,13 +169,8 @@ public class ThumbnailLoader {
             // Now decode with calculated sample size
             BitmapFactory.Options decodeOpts = new BitmapFactory.Options();
             decodeOpts.inSampleSize = sampleSize;
-
-            if (encrypted) {
-                try (InputStream is = obfuscator.getDecryptedStream(file)) {
-                    return BitmapFactory.decodeStream(is, null, decodeOpts);
-                }
-            } else {
-                return BitmapFactory.decodeFile(file.getAbsolutePath(), decodeOpts);
+            try (InputStream is = FileStreamFactory.createInputStream(file)) {
+                return BitmapFactory.decodeStream(is, null, decodeOpts);
             }
         } catch (IOException e) {
             // File may be unreadable or corrupt; silently skip
@@ -217,7 +203,7 @@ public class ThumbnailLoader {
         MediaMetadataRetriever retriever = new MediaMetadataRetriever();
         EncryptedMediaDataSource dataSource = null;
         try {
-            if (encrypted) {
+            if (FileStreamFactory.isEncrypted(file)) {
                 dataSource = new EncryptedMediaDataSource(file);
                 retriever.setDataSource(dataSource);
             } else {

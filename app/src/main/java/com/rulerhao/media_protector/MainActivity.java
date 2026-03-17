@@ -21,6 +21,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.rulerhao.media_protector.data.MediaRepository;
+import com.rulerhao.media_protector.ui.AlbumController;
 import com.rulerhao.media_protector.ui.MainContract;
 import com.rulerhao.media_protector.ui.MainPresenter;
 import com.rulerhao.media_protector.util.OriginalPathStore;
@@ -34,8 +35,6 @@ import com.rulerhao.media_protector.util.ThumbnailLoader;
 import com.rulerhao.media_protector.util.DisguiseHelper;
 
 import android.app.AlertDialog;
-import android.widget.LinearLayout;
-
 import java.io.File;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -49,8 +48,6 @@ import android.widget.EditText;
 import android.widget.ImageButton;
 
 import com.rulerhao.media_protector.crypto.HeaderObfuscator;
-import com.rulerhao.media_protector.data.AlbumManager;
-import com.rulerhao.media_protector.data.FileConfig;
 import com.rulerhao.media_protector.data.MediaFilter;
 import com.rulerhao.media_protector.data.SortOption;
 
@@ -166,8 +163,7 @@ public class MainActivity extends Activity implements MainContract.View {
     private PreviewPopup previewPopup;
 
     // ─── Album view ───────────────────────────────────────────────────────────
-    private boolean     inAlbumView    = true;
-    private File        currentAlbumDir = null;
+    private AlbumController albumController;
     private GridView    albumGridView;
     private AlbumAdapter albumAdapter;
     private View        albumBar;
@@ -276,6 +272,11 @@ public class MainActivity extends Activity implements MainContract.View {
         albumAdapter = new AlbumAdapter(this);
         albumGridView.setAdapter(albumAdapter);
 
+        albumController = new AlbumController(
+                this, buildAlbumControllerCallback(),
+                albumBar, albumGridView, albumBreadcrumbBar, tvAlbumBreadcrumb,
+                searchBar, pullToRefreshProtected, selectionBar, albumAdapter);
+
         presenter = new MainPresenter(this, new MediaRepository(this));
 
         // ── Pull-to-refresh ──────────────────────────────────────────────
@@ -361,25 +362,26 @@ public class MainActivity extends Activity implements MainContract.View {
         albumGridView.setOnItemClickListener((parent, view, pos, id) -> {
             AlbumAdapter.AlbumItem item = albumAdapter.getItem(pos);
             if (item.type == AlbumAdapter.TYPE_ADD) {
-                showCreateAlbumDialog(null);
+                albumController.showCreateAlbumDialog(null);
             } else {
-                openAlbum(item.dir);
+                albumController.openAlbum(item.dir);
             }
         });
 
         albumGridView.setOnItemLongClickListener((parent, view, pos, id) -> {
             AlbumAdapter.AlbumItem item = albumAdapter.getItem(pos);
             if (item.type == AlbumAdapter.TYPE_ALBUM && item.dir != null) {
-                showAlbumOptionsDialog(item);
+                albumController.showAlbumOptionsDialog(item);
             }
             return true;
         });
 
-        btnBackToAlbums.setOnClickListener(v -> showAlbumView());
+        btnBackToAlbums.setOnClickListener(v -> albumController.showAlbumView(allProtectedFiles));
 
-        btnMoveToAlbum.setOnClickListener(v -> showMoveToAlbumDialog());
+        btnMoveToAlbum.setOnClickListener(v ->
+                albumController.showMoveToAlbumDialog(((MainPresenter) presenter).getSelectedFiles()));
 
-        btnAddAlbum.setOnClickListener(v -> showCreateAlbumDialog(null));
+        btnAddAlbum.setOnClickListener(v -> albumController.showCreateAlbumDialog(null));
 
         // ── Browse sub-tabs ──────────────────────────────────────────────
         btnBrowseModeDate.setOnClickListener(v   -> switchBrowseMode(BrowseMode.DATE));
@@ -528,7 +530,7 @@ public class MainActivity extends Activity implements MainContract.View {
                 // Protect (encrypt) files selected in browse - show album selection dialog
                 Set<File> sel = browseAdapter.getSelectedFiles();
                 if (!sel.isEmpty()) {
-                    showEncryptToAlbumDialog(new ArrayList<>(sel));
+                    albumController.showEncryptToAlbumDialog(new ArrayList<>(sel));
                 }
             }
         });
@@ -608,7 +610,7 @@ public class MainActivity extends Activity implements MainContract.View {
     @Override
     public void onBackPressed() {
         // If viewing files in Protected tab (not album grid), go back to album view
-        if (showEncrypted && !inAlbumView) {
+        if (showEncrypted && !albumController.isInAlbumView()) {
             if (gridSelectionActive) {
                 int count = ((MainPresenter) presenter).getSelectedFiles().size();
                 if (count > 0) {
@@ -617,14 +619,14 @@ public class MainActivity extends Activity implements MainContract.View {
                             .setMessage(getString(R.string.confirm_discard_selection_message, count))
                             .setPositiveButton(R.string.btn_discard, (dialog, which) -> {
                                 presenter.deselectAll();
-                                showAlbumView();
+                                albumController.showAlbumView(allProtectedFiles);
                             })
                             .setNegativeButton(R.string.btn_cancel, null)
                             .show();
                     return;
                 }
             }
-            showAlbumView();
+            albumController.showAlbumView(allProtectedFiles);
             return;
         }
         // If in selection mode, confirm before discarding selection
@@ -674,12 +676,12 @@ public class MainActivity extends Activity implements MainContract.View {
         if (showEncrypted) {
             // Protected mode: store all files
             allProtectedFiles = new ArrayList<>(files);
-            if (inAlbumView) {
-                buildAndShowAlbumGrid();
+            if (albumController.isInAlbumView()) {
+                albumController.buildAndShowAlbumGrid(allProtectedFiles);
             } else {
                 filterProtectedFiles();
             }
-            if (!files.isEmpty() && !inAlbumView) {
+            if (!files.isEmpty() && !albumController.isInAlbumView()) {
                 Toast.makeText(this,
                         getString(R.string.toast_found_files, files.size()),
                         Toast.LENGTH_SHORT).show();
@@ -1011,7 +1013,7 @@ public class MainActivity extends Activity implements MainContract.View {
                 adapter.setShowEncrypted(true);
                 browseAdapter.clearSelection();
                 presenter.switchMode(true);
-                showAlbumView();
+                albumController.showAlbumView(allProtectedFiles);
                 break;
 
             case ORIGINAL:
@@ -1147,234 +1149,30 @@ public class MainActivity extends Activity implements MainContract.View {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // Album view
+    // AlbumController callback
     // ─────────────────────────────────────────────────────────────────────
 
-    /** Switches the Protected tab to the album grid view. */
-    private void showAlbumView() {
-        inAlbumView = true;
-        currentAlbumDir = null;
-        albumBar.setVisibility(View.VISIBLE);
-        albumGridView.setVisibility(View.VISIBLE);
-        albumBreadcrumbBar.setVisibility(View.GONE);
-        searchBar.setVisibility(View.GONE);
-        pullToRefreshProtected.setVisibility(View.GONE);
-        selectionBar.setVisibility(View.GONE);
-        presenter.deselectAll();
-        buildAndShowAlbumGrid();
-    }
-
-    /** Opens a specific album (or all files if albumDir == null). */
-    private void openAlbum(File albumDir) {
-        inAlbumView = false;
-        currentAlbumDir = albumDir;
-        albumBar.setVisibility(View.GONE);
-        albumGridView.setVisibility(View.GONE);
-        pullToRefreshProtected.setVisibility(View.VISIBLE);
-        searchBar.setVisibility(View.VISIBLE);
-        if (albumDir != null) {
-            albumBreadcrumbBar.setVisibility(View.VISIBLE);
-            tvAlbumBreadcrumb.setText(albumDir.getName());
-        } else {
-            albumBreadcrumbBar.setVisibility(View.GONE);
-        }
-        filterProtectedFiles();
-    }
-
-    /** Rebuilds the album grid from the current allProtectedFiles list. */
-    private void buildAndShowAlbumGrid() {
-        albumBar.setVisibility(View.VISIBLE);
-        albumGridView.setVisibility(View.VISIBLE);
-        pullToRefreshProtected.setVisibility(View.GONE);
-        albumBreadcrumbBar.setVisibility(View.GONE);
-        searchBar.setVisibility(View.GONE);
-
-        File protectedRoot = FileConfig.getProtectedFolder();
-        List<AlbumAdapter.AlbumItem> items = new ArrayList<>();
-
-        // "All Files" card
-        File allCover = allProtectedFiles.isEmpty() ? null : allProtectedFiles.get(0);
-        items.add(new AlbumAdapter.AlbumItem(null, getString(R.string.album_all) + " Files",
-                allProtectedFiles.size(), allCover));
-
-        // One card per album subdirectory
-        for (File dir : AlbumManager.getAlbumDirs(protectedRoot)) {
-            File cover = AlbumManager.getAlbumCover(dir);
-            int count  = AlbumManager.getFileCount(dir);
-            items.add(new AlbumAdapter.AlbumItem(dir, dir.getName(), count, cover));
-        }
-
-        // "New Album" add card
-        items.add(new AlbumAdapter.AlbumItem());
-
-        albumAdapter.setItems(items);
-        showEmptyState(false, "");
-    }
-
-    private void showMoveToAlbumDialog() {
-        Set<File> selected = ((MainPresenter) presenter).getSelectedFiles();
-        if (selected.isEmpty()) return;
-
-        File protectedRoot = FileConfig.getProtectedFolder();
-        List<File> albumDirs = AlbumManager.getAlbumDirs(protectedRoot);
-
-        List<String> options = new ArrayList<>();
-        options.add(getString(R.string.album_create));        // "New Album"
-        for (File dir : albumDirs) options.add(dir.getName());
-        options.add("Remove from album");                      // move to root
-
-        new AlertDialog.Builder(this)
-                .setTitle(R.string.album_move_to)
-                .setItems(options.toArray(new String[0]), (dialog, which) -> {
-                    List<File> toMove = new ArrayList<>(selected);
-                    presenter.deselectAll();
-                    if (which == 0) {
-                        showCreateAlbumDialog(toMove);
-                    } else if (which == options.size() - 1) {
-                        presenter.moveToAlbum(toMove, protectedRoot);
-                    } else {
-                        presenter.moveToAlbum(toMove, albumDirs.get(which - 1));
-                    }
-                })
-                .setNegativeButton(R.string.btn_cancel, null)
-                .show();
-    }
-
-    /**
-     * Shows a dialog to select which album to encrypt files into.
-     * Called when encrypting files from the browse/Original tab.
-     */
-    private void showEncryptToAlbumDialog(List<File> filesToEncrypt) {
-        if (filesToEncrypt.isEmpty()) return;
-
-        File protectedRoot = FileConfig.getProtectedFolder();
-        List<File> albumDirs = AlbumManager.getAlbumDirs(protectedRoot);
-
-        List<String> options = new ArrayList<>();
-        options.add(getString(R.string.encrypt_to_main));       // "Main Collection"
-        for (File dir : albumDirs) options.add(dir.getName());
-        options.add(getString(R.string.album_create));          // "New Album"
-
-        new AlertDialog.Builder(this)
-                .setTitle(R.string.encrypt_to_album_title)
-                .setItems(options.toArray(new String[0]), (dialog, which) -> {
-                    browseAdapter.clearSelection();
-                    if (which == 0) {
-                        // Encrypt to main protected folder (default behavior)
-                        presenter.encryptFiles(filesToEncrypt);
-                    } else if (which == options.size() - 1) {
-                        // Create new album and encrypt to it
-                        showCreateAlbumForEncryptDialog(filesToEncrypt);
-                    } else {
-                        // Encrypt to selected album
-                        File targetAlbum = albumDirs.get(which - 1);
-                        presenter.encryptFilesToAlbum(filesToEncrypt, targetAlbum);
-                    }
-                })
-                .setNegativeButton(R.string.btn_cancel, null)
-                .show();
-    }
-
-    /**
-     * Shows a dialog to create a new album and encrypt files into it.
-     */
-    private void showCreateAlbumForEncryptDialog(List<File> filesToEncrypt) {
-        EditText input = new EditText(this);
-        input.setHint(R.string.album_name_hint);
-        input.setInputType(android.text.InputType.TYPE_CLASS_TEXT
-                | android.text.InputType.TYPE_TEXT_FLAG_CAP_WORDS);
-        LinearLayout container = new LinearLayout(this);
-        container.setPadding(48, 32, 48, 0);
-        container.addView(input);
-
-        new AlertDialog.Builder(this)
-                .setTitle(R.string.album_create_title)
-                .setView(container)
-                .setPositiveButton(R.string.btn_create, (d, which) -> {
-                    String name = input.getText().toString().trim();
-                    if (!AlbumManager.isValidName(name)) return;
-                    File protectedRoot = FileConfig.getProtectedFolder();
-                    if (AlbumManager.albumExists(protectedRoot, name)) {
-                        Toast.makeText(this, R.string.album_exists, Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-                    File newAlbum = AlbumManager.createAlbum(protectedRoot, name);
-                    if (newAlbum == null) {
-                        Toast.makeText(this, R.string.error_generic, Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-                    Toast.makeText(this, R.string.album_created, Toast.LENGTH_SHORT).show();
-                    // Encrypt files to the new album
-                    presenter.encryptFilesToAlbum(filesToEncrypt, newAlbum);
-                })
-                .setNegativeButton(R.string.btn_cancel, null)
-                .show();
-    }
-
-    private void showCreateAlbumDialog(List<File> filesToMove) {
-        EditText input = new EditText(this);
-        input.setHint(R.string.album_name_hint);
-        input.setInputType(android.text.InputType.TYPE_CLASS_TEXT
-                | android.text.InputType.TYPE_TEXT_FLAG_CAP_WORDS);
-        LinearLayout container = new LinearLayout(this);
-        container.setPadding(48, 32, 48, 0);
-        container.addView(input);
-
-        new AlertDialog.Builder(this)
-                .setTitle(R.string.album_create_title)
-                .setView(container)
-                .setPositiveButton(R.string.btn_create, (d, which) -> {
-                    String name = input.getText().toString().trim();
-                    if (!AlbumManager.isValidName(name)) return;
-                    File protectedRoot = FileConfig.getProtectedFolder();
-                    if (AlbumManager.albumExists(protectedRoot, name)) {
-                        Toast.makeText(this, R.string.album_exists, Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-                    File newAlbum = AlbumManager.createAlbum(protectedRoot, name);
-                    if (newAlbum == null) {
-                        Toast.makeText(this, R.string.error_generic, Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-                    Toast.makeText(this, R.string.album_created, Toast.LENGTH_SHORT).show();
-                    if (filesToMove != null && !filesToMove.isEmpty()) {
-                        presenter.moveToAlbum(filesToMove, newAlbum);
-                    } else {
-                        // Just refresh album grid to show new album
-                        buildAndShowAlbumGrid();
-                    }
-                })
-                .setNegativeButton(R.string.btn_cancel, null)
-                .show();
-    }
-
-    private void showAlbumOptionsDialog(AlbumAdapter.AlbumItem album) {
-        new AlertDialog.Builder(this)
-                .setTitle(album.name)
-                .setItems(new String[]{getString(R.string.album_delete)}, (d, which) -> {
-                    new AlertDialog.Builder(this)
-                            .setTitle(R.string.album_delete)
-                            .setMessage("\"" + album.name + "\" will be deleted. Files will be moved to the main collection.")
-                            .setPositiveButton("Delete", (d2, w2) -> {
-                                new Thread(() -> {
-                                    try {
-                                        AlbumManager.deleteAlbum(album.dir, FileConfig.getProtectedFolder());
-                                        runOnUiThread(() -> {
-                                            Toast.makeText(this, R.string.album_deleted, Toast.LENGTH_SHORT).show();
-                                            presenter.switchMode(true);
-                                            showAlbumView();
-                                        });
-                                    } catch (Exception e) {
-                                        runOnUiThread(() -> Toast.makeText(this,
-                                                R.string.error_generic, Toast.LENGTH_SHORT).show());
-                                    }
-                                }).start();
-                            })
-                            .setNegativeButton(R.string.btn_cancel, null)
-                            .show();
-                })
-                .setNegativeButton(R.string.btn_cancel, null)
-                .show();
+    private AlbumController.Callback buildAlbumControllerCallback() {
+        return new AlbumController.Callback() {
+            @Override public void onOpenAlbum(File albumDir) { filterProtectedFiles(); }
+            @Override public void onShowEmptyState(boolean empty, String msg) { showEmptyState(empty, msg); }
+            @Override public void deselectAll() { presenter.deselectAll(); }
+            @Override public void moveFilesToAlbum(List<File> files, File targetDir) {
+                presenter.moveToAlbum(files, targetDir);
+            }
+            @Override public void encryptFiles(List<File> files) { presenter.encryptFiles(files); }
+            @Override public void encryptFilesToAlbum(List<File> files, File albumDir) {
+                presenter.encryptFilesToAlbum(files, albumDir);
+            }
+            @Override public void onAlbumDeleted() {
+                presenter.switchMode(true);
+                albumController.buildAndShowAlbumGrid(allProtectedFiles);
+            }
+            @Override public void clearBrowseSelection() { browseAdapter.clearSelection(); }
+            @Override public void onRefreshAlbumGrid() {
+                albumController.buildAndShowAlbumGrid(allProtectedFiles);
+            }
+        };
     }
 
     private void showDisguiseGuideDialog() {
@@ -1563,7 +1361,7 @@ public class MainActivity extends Activity implements MainContract.View {
     /** Applies album, search, and sort filters then updates the grid adapter. */
     private void filterProtectedFiles() {
         List<File> result = MediaFilter.apply(
-                allProtectedFiles, currentAlbumDir, currentSearchQuery, currentSortOption);
+                allProtectedFiles, albumController.getCurrentAlbumDir(), currentSearchQuery, currentSortOption);
         adapter.setFiles(result);
         boolean empty = result.isEmpty();
         showEmptyState(empty, currentSearchQuery.isEmpty()

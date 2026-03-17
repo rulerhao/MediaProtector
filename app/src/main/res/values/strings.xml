@@ -139,6 +139,8 @@
     <string name="album_moved">Moved to %s</string>
     <string name="album_delete">Delete Album</string>
     <string name="album_deleted">Album deleted</string>
+    <string name="album_remove_from">Remove from Album</string>
+    <string name="album_delete_message">will be deleted. Files will be moved to the main collection.</string>
     <string name="encrypt_to_album_title">Protect to Album</string>
     <string name="encrypt_to_main">Main Collection</string>
     <string name="move_to_main">Main Collection</string>

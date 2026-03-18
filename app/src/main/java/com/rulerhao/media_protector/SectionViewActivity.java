@@ -8,7 +8,9 @@ import android.widget.Button;
 import android.widget.GridView;
 import android.widget.TextView;
 
-import com.rulerhao.media_protector.util.ThemeHelper;
+import com.rulerhao.media_protector.shared.ThemeHelper;
+import com.rulerhao.media_protector.media.MediaAdapter;
+import com.rulerhao.media_protector.media.MediaViewerActivity;
 
 import java.io.File;
 import java.util.ArrayList;

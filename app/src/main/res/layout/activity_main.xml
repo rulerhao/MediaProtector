@@ -196,14 +196,14 @@
     </LinearLayout>
 
     <!-- ===== Content area with swipe support ===== -->
-    <com.rulerhao.media_protector.util.SwipeableTabLayout
+    <com.rulerhao.media_protector.widget.SwipeableTabLayout
         android:id="@+id/swipeableContent"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1">
 
         <!-- Protected mode: flat grid with pull-to-refresh -->
-        <com.rulerhao.media_protector.util.PullToRefreshLayout
+        <com.rulerhao.media_protector.widget.PullToRefreshLayout
             android:id="@+id/pullToRefreshProtected"
             android:layout_width="match_parent"
             android:layout_height="match_parent">
@@ -217,10 +217,10 @@
                 android:verticalSpacing="2dp"
                 android:stretchMode="columnWidth" />
 
-        </com.rulerhao.media_protector.util.PullToRefreshLayout>
+        </com.rulerhao.media_protector.widget.PullToRefreshLayout>
 
         <!-- Original mode: browse list with pull-to-refresh -->
-        <com.rulerhao.media_protector.util.PullToRefreshLayout
+        <com.rulerhao.media_protector.widget.PullToRefreshLayout
             android:id="@+id/pullToRefreshBrowse"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
@@ -234,7 +234,7 @@
                 android:dividerHeight="1dp"
                 android:background="?android:attr/colorBackground" />
 
-        </com.rulerhao.media_protector.util.PullToRefreshLayout>
+        </com.rulerhao.media_protector.widget.PullToRefreshLayout>
 
         <!-- Album grid (visible in Protected tab, album view mode) -->
         <GridView
@@ -249,7 +249,7 @@
             android:visibility="gone" />
 
         <!-- Skeleton loading view (shimmer effect) -->
-        <com.rulerhao.media_protector.util.SkeletonView
+        <com.rulerhao.media_protector.widget.SkeletonView
             android:id="@+id/skeletonView"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
@@ -620,7 +620,7 @@
 
         </ScrollView>
 
-    </com.rulerhao.media_protector.util.SwipeableTabLayout>
+    </com.rulerhao.media_protector.widget.SwipeableTabLayout>
 
     <!-- ===== Selection bottom bar (hidden when not selecting) ===== -->
     <LinearLayout

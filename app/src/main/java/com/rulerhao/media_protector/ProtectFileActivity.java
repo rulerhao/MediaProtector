@@ -8,9 +8,9 @@ import android.os.Bundle;
 import android.widget.Toast;
 
 import com.rulerhao.media_protector.crypto.HeaderObfuscator;
-import com.rulerhao.media_protector.data.FileConfig;
-import com.rulerhao.media_protector.util.OriginalPathStore;
-import com.rulerhao.media_protector.util.ThemeHelper;
+import com.rulerhao.media_protector.core.FileConfig;
+import com.rulerhao.media_protector.security.OriginalPathStore;
+import com.rulerhao.media_protector.shared.ThemeHelper;
 
 import java.io.File;
 import java.io.FileOutputStream;

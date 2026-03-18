@@ -20,19 +20,19 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.rulerhao.media_protector.data.MediaRepository;
-import com.rulerhao.media_protector.ui.AlbumController;
-import com.rulerhao.media_protector.ui.MainContract;
-import com.rulerhao.media_protector.ui.MainPresenter;
-import com.rulerhao.media_protector.util.OriginalPathStore;
-import com.rulerhao.media_protector.util.PreviewPopup;
-import com.rulerhao.media_protector.util.PullToRefreshLayout;
-import com.rulerhao.media_protector.util.SecurityHelper;
-import com.rulerhao.media_protector.util.SkeletonView;
-import com.rulerhao.media_protector.util.SwipeableTabLayout;
-import com.rulerhao.media_protector.util.ThemeHelper;
-import com.rulerhao.media_protector.util.ThumbnailLoader;
-import com.rulerhao.media_protector.util.DisguiseHelper;
+import com.rulerhao.media_protector.core.MediaRepository;
+import com.rulerhao.media_protector.album.AlbumController;
+import com.rulerhao.media_protector.core.MainContract;
+import com.rulerhao.media_protector.core.MainPresenter;
+import com.rulerhao.media_protector.security.OriginalPathStore;
+import com.rulerhao.media_protector.media.PreviewPopup;
+import com.rulerhao.media_protector.widget.PullToRefreshLayout;
+import com.rulerhao.media_protector.security.SecurityHelper;
+import com.rulerhao.media_protector.widget.SkeletonView;
+import com.rulerhao.media_protector.widget.SwipeableTabLayout;
+import com.rulerhao.media_protector.shared.ThemeHelper;
+import com.rulerhao.media_protector.media.ThumbnailLoader;
+import com.rulerhao.media_protector.disguise.DisguiseHelper;
 
 import android.app.AlertDialog;
 import java.io.File;
@@ -48,8 +48,14 @@ import android.widget.EditText;
 import android.widget.ImageButton;
 
 import com.rulerhao.media_protector.crypto.HeaderObfuscator;
-import com.rulerhao.media_protector.data.MediaFilter;
-import com.rulerhao.media_protector.data.SortOption;
+import com.rulerhao.media_protector.album.MediaFilter;
+import com.rulerhao.media_protector.album.SortOption;
+import com.rulerhao.media_protector.album.AlbumAdapter;
+import com.rulerhao.media_protector.browse.FolderAdapter;
+import com.rulerhao.media_protector.browse.BrowseListBuilder;
+import com.rulerhao.media_protector.media.MediaAdapter;
+import com.rulerhao.media_protector.media.MediaViewerActivity;
+import com.rulerhao.media_protector.security.LockScreenActivity;
 
 public class MainActivity extends Activity implements MainContract.View {
 

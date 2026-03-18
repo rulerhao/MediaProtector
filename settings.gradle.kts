@@ -16,3 +16,6 @@ dependencyResolutionManagement {
 rootProject.name = "MediaProtector"
 include(":app")
 include(":media-crypto")
+include(":ui-components")
+include(":security-core")
+include(":media-crypto-android")

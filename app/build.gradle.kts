@@ -39,5 +39,8 @@ android {
 
 dependencies {
     implementation(project(":media-crypto"))
+    implementation(project(":ui-components"))
+    implementation(project(":security-core"))
+    implementation(project(":media-crypto-android"))
     // No external dependencies
 }

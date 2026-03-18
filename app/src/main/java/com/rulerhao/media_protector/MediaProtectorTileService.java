@@ -5,7 +5,7 @@ import android.os.Build;
 import android.service.quicksettings.Tile;
 import android.service.quicksettings.TileService;
 
-import com.rulerhao.media_protector.data.FileConfig;
+import com.rulerhao.media_protector.core.FileConfig;
 
 import java.io.File;
 

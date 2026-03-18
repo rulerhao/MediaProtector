@@ -8,7 +8,7 @@ import android.content.Intent;
 import android.os.Environment;
 import android.widget.RemoteViews;
 
-import com.rulerhao.media_protector.data.FileConfig;
+import com.rulerhao.media_protector.core.FileConfig;
 
 import java.io.File;
 

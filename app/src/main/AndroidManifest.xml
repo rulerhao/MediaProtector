@@ -37,7 +37,7 @@
         <!-- Calculator disguise launcher -->
         <activity-alias
             android:name=".MainActivityCalculator"
-            android:targetActivity=".DecoyCalculatorActivity"
+            android:targetActivity=".disguise.DecoyCalculatorActivity"
             android:exported="true"
             android:enabled="false"
             android:icon="@drawable/ic_disguise_calculator"
@@ -53,21 +53,21 @@
             android:exported="false" />
 
         <activity
-            android:name=".DecoyCalculatorActivity"
+            android:name=".disguise.DecoyCalculatorActivity"
             android:exported="false"
             android:theme="@style/Theme.Minimal.Dark" />
         <activity
-            android:name=".DecoyNotesActivity"
+            android:name=".disguise.DecoyNotesActivity"
             android:exported="false" />
         <activity
-            android:name=".DecoyWeatherActivity"
+            android:name=".disguise.DecoyWeatherActivity"
             android:exported="false" />
         <activity
-            android:name=".MediaViewerActivity"
+            android:name=".media.MediaViewerActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize" />
         <activity
-            android:name=".LockScreenActivity"
+            android:name=".security.LockScreenActivity"
             android:exported="false"
             android:theme="@style/Theme.Minimal" />
         <activity

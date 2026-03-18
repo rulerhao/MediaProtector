@@ -2,6 +2,7 @@ package com.rulerhao.media_protector.album;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Intent;
 import android.text.InputType;
 import android.view.View;
 import android.widget.EditText;
@@ -9,6 +10,9 @@ import android.widget.GridView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
+
+// Note: AlertDialog/EditText/LinearLayout/InputType/Toast still used by
+// showCreateAlbumDialog and showAlbumOptionsDialog below.
 
 import com.rulerhao.media_protector.R;
 import com.rulerhao.media_protector.core.FileConfig;
@@ -65,10 +69,20 @@ public class AlbumController {
         void onRefreshAlbumGrid();
     }
 
+    // ─── Request codes (pass these to startActivityForResult) ──────────────
+
+    public static final int REQUEST_PICK_ALBUM_MOVE    = 400;
+    public static final int REQUEST_PICK_ALBUM_ENCRYPT = 401;
+
     // ─── Fields ────────────────────────────────────────────────────────────
 
     private final Activity activity;
     private final Callback callback;
+
+    /** Files pending the album-picker result (move flow). */
+    private List<File> pendingMoveFiles;
+    /** Files pending the album-picker result (encrypt flow). */
+    private List<File> pendingEncryptFiles;
 
     // Views owned by this controller
     private final View albumBar;
@@ -187,90 +201,71 @@ public class AlbumController {
 
     // ─── Dialogs ───────────────────────────────────────────────────────────
 
-    public void showMoveToAlbumDialog(Set<File> selected) {
+    /** Launches AlbumPickerActivity for the Move-to-Album flow. */
+    public void launchAlbumPickerForMove(Set<File> selected) {
         if (selected.isEmpty()) return;
-
-        File protectedRoot = FileConfig.getProtectedFolder();
-        List<File> albumDirs = AlbumManager.getAlbumDirs(protectedRoot);
-
-        List<String> options = new ArrayList<>();
-        options.add(activity.getString(R.string.album_create));
-        for (File dir : albumDirs) options.add(dir.getName());
-        options.add(activity.getString(R.string.album_remove_from));
-
-        new AlertDialog.Builder(activity)
-                .setTitle(R.string.album_move_to)
-                .setItems(options.toArray(new String[0]), (dialog, which) -> {
-                    List<File> toMove = new ArrayList<>(selected);
-                    callback.deselectAll();
-                    if (which == 0) {
-                        showCreateAlbumDialog(toMove);
-                    } else if (which == options.size() - 1) {
-                        callback.moveFilesToAlbum(toMove, protectedRoot);
-                    } else {
-                        callback.moveFilesToAlbum(toMove, albumDirs.get(which - 1));
-                    }
-                })
-                .setNegativeButton(R.string.btn_cancel, null)
-                .show();
+        pendingMoveFiles = new ArrayList<>(selected);
+        callback.deselectAll();
+        Intent intent = buildPickerIntent(AlbumPickerActivity.MODE_MOVE, pendingMoveFiles);
+        activity.startActivityForResult(intent, REQUEST_PICK_ALBUM_MOVE);
     }
 
-    public void showEncryptToAlbumDialog(List<File> filesToEncrypt) {
+    /** Launches AlbumPickerActivity for the Encrypt-to-Album flow. */
+    public void launchAlbumPickerForEncrypt(List<File> filesToEncrypt) {
         if (filesToEncrypt.isEmpty()) return;
-
-        File protectedRoot = FileConfig.getProtectedFolder();
-        List<File> albumDirs = AlbumManager.getAlbumDirs(protectedRoot);
-
-        List<String> options = new ArrayList<>();
-        options.add(activity.getString(R.string.encrypt_to_main));
-        for (File dir : albumDirs) options.add(dir.getName());
-        options.add(activity.getString(R.string.album_create));
-
-        new AlertDialog.Builder(activity)
-                .setTitle(R.string.encrypt_to_album_title)
-                .setItems(options.toArray(new String[0]), (dialog, which) -> {
-                    callback.clearBrowseSelection();
-                    if (which == 0) {
-                        callback.encryptFiles(filesToEncrypt);
-                    } else if (which == options.size() - 1) {
-                        showCreateAlbumForEncryptDialog(filesToEncrypt);
-                    } else {
-                        callback.encryptFilesToAlbum(filesToEncrypt, albumDirs.get(which - 1));
-                    }
-                })
-                .setNegativeButton(R.string.btn_cancel, null)
-                .show();
+        pendingEncryptFiles = new ArrayList<>(filesToEncrypt);
+        callback.clearBrowseSelection();
+        Intent intent = buildPickerIntent(AlbumPickerActivity.MODE_ENCRYPT, pendingEncryptFiles);
+        activity.startActivityForResult(intent, REQUEST_PICK_ALBUM_ENCRYPT);
     }
 
-    public void showCreateAlbumForEncryptDialog(List<File> filesToEncrypt) {
-        EditText input = new EditText(activity);
-        input.setHint(R.string.album_name_hint);
-        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
-        LinearLayout container = new LinearLayout(activity);
-        container.setPadding(48, 32, 48, 0);
-        container.addView(input);
+    private Intent buildPickerIntent(int mode, List<File> files) {
+        ArrayList<String> paths = new ArrayList<>(files.size());
+        for (File f : files) paths.add(f.getAbsolutePath());
+        Intent intent = new Intent(activity, AlbumPickerActivity.class);
+        intent.putExtra(AlbumPickerActivity.EXTRA_MODE, mode);
+        intent.putStringArrayListExtra(AlbumPickerActivity.EXTRA_FILE_PATHS, paths);
+        return intent;
+    }
 
-        new AlertDialog.Builder(activity)
-                .setTitle(R.string.album_create_title)
-                .setView(container)
-                .setPositiveButton(R.string.btn_create, (d, which) -> {
-                    String name = input.getText().toString().trim();
-                    if (!AlbumManager.isValidName(name)) return;
-                    File protectedRoot = FileConfig.getProtectedFolder();
-                    if (AlbumManager.albumExists(protectedRoot, name)) {
-                        Toast.makeText(activity, R.string.album_exists, Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-                    File newAlbum = AlbumManager.createAlbum(protectedRoot, name);
-                    if (newAlbum == null) {
-                        Toast.makeText(activity, R.string.error_generic, Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-                    Toast.makeText(activity, R.string.album_created, Toast.LENGTH_SHORT).show();
-                    callback.encryptFilesToAlbum(filesToEncrypt, newAlbum);
-                })
-                .setNegativeButton(R.string.btn_cancel, null)
-                .show();
+    /**
+     * Delegate from {@code MainActivity.onActivityResult}.
+     * Handles results from both album-picker request codes.
+     */
+    public boolean onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode != REQUEST_PICK_ALBUM_MOVE && requestCode != REQUEST_PICK_ALBUM_ENCRYPT) {
+            return false; // not ours
+        }
+        if (resultCode != Activity.RESULT_OK || data == null) {
+            pendingMoveFiles    = null;
+            pendingEncryptFiles = null;
+            return true;
+        }
+
+        int resultType = data.getIntExtra(AlbumPickerActivity.EXTRA_RESULT_TYPE, -1);
+        String albumPath = data.getStringExtra(AlbumPickerActivity.EXTRA_RESULT_ALBUM_PATH);
+        File albumDir = (albumPath != null) ? new File(albumPath) : null;
+
+        if (requestCode == REQUEST_PICK_ALBUM_MOVE) {
+            List<File> files = pendingMoveFiles;
+            pendingMoveFiles = null;
+            if (files == null) return true;
+            if (resultType == AlbumPickerActivity.RESULT_TYPE_REMOVE_FROM_ALBUM) {
+                callback.moveFilesToAlbum(files, FileConfig.getProtectedFolder());
+            } else if (resultType == AlbumPickerActivity.RESULT_TYPE_ALBUM && albumDir != null) {
+                callback.moveFilesToAlbum(files, albumDir);
+            }
+        } else {
+            List<File> files = pendingEncryptFiles;
+            pendingEncryptFiles = null;
+            if (files == null) return true;
+            if (resultType == AlbumPickerActivity.RESULT_TYPE_MAIN_COLLECTION) {
+                callback.encryptFiles(files);
+            } else if (resultType == AlbumPickerActivity.RESULT_TYPE_ALBUM && albumDir != null) {
+                callback.encryptFilesToAlbum(files, albumDir);
+            }
+        }
+        return true;
     }
 
     public void showCreateAlbumDialog(List<File> filesToMove) {

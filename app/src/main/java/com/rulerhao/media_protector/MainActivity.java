@@ -385,7 +385,7 @@ public class MainActivity extends Activity implements MainContract.View {
         btnBackToAlbums.setOnClickListener(v -> albumController.showAlbumView(allProtectedFiles));
 
         btnMoveToAlbum.setOnClickListener(v ->
-                albumController.showMoveToAlbumDialog(((MainPresenter) presenter).getSelectedFiles()));
+                albumController.launchAlbumPickerForMove(((MainPresenter) presenter).getSelectedFiles()));
 
         btnAddAlbum.setOnClickListener(v -> albumController.showCreateAlbumDialog(null));
 
@@ -536,7 +536,7 @@ public class MainActivity extends Activity implements MainContract.View {
                 // Protect (encrypt) files selected in browse - show album selection dialog
                 Set<File> sel = browseAdapter.getSelectedFiles();
                 if (!sel.isEmpty()) {
-                    albumController.showEncryptToAlbumDialog(new ArrayList<>(sel));
+                    albumController.launchAlbumPickerForEncrypt(new ArrayList<>(sel));
                 }
             }
         });
@@ -891,6 +891,7 @@ public class MainActivity extends Activity implements MainContract.View {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (albumController.onActivityResult(requestCode, resultCode, data)) return;
         if (requestCode == PERMISSION_REQUEST_CODE) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 if (Environment.isExternalStorageManager()) {

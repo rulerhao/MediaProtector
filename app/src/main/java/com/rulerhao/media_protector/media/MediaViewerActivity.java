@@ -1130,13 +1130,16 @@ public class MediaViewerActivity extends Activity implements TextureView.Surface
                 // Create encrypted file in target album
                 String encryptedName = sourceFile.getName() + FileConfig.ENCRYPTED_EXTENSION;
                 newFile = new File(targetAlbum, encryptedName);
-                // Handle duplicates
+                // Handle duplicates - insert counter before original extension
+                // e.g., photo.jpg.mprot → photo(1).jpg.mprot (not photo.jpg(1).mprot)
                 if (newFile.exists()) {
-                    String base = sourceFile.getName();
-                    String ext = FileConfig.ENCRYPTED_EXTENSION;
+                    String originalName = sourceFile.getName();
+                    int dotIdx = originalName.lastIndexOf('.');
+                    String nameBase = dotIdx > 0 ? originalName.substring(0, dotIdx) : originalName;
+                    String nameExt = dotIdx > 0 ? originalName.substring(dotIdx) : "";
                     int counter = 1;
                     while (newFile.exists()) {
-                        newFile = new File(targetAlbum, base + "(" + counter + ")" + ext);
+                        newFile = new File(targetAlbum, nameBase + "(" + counter + ")" + nameExt + FileConfig.ENCRYPTED_EXTENSION);
                         counter++;
                     }
                 }
@@ -1280,21 +1283,22 @@ public class MediaViewerActivity extends Activity implements TextureView.Surface
             try {
                 targetDir.mkdirs();
                 destFile = new File(targetDir, sourceFile.getName());
-                // Handle duplicates
+                // Handle duplicates - for encrypted files like photo.jpg.mprot,
+                // insert counter before original extension: photo(1).jpg.mprot
                 if (destFile.exists()) {
                     String name = sourceFile.getName();
-                    String base, ext;
-                    int dot = name.lastIndexOf('.');
-                    if (dot > 0) {
-                        base = name.substring(0, dot);
-                        ext = name.substring(dot);
-                    } else {
-                        base = name;
-                        ext = "";
-                    }
+                    // Remove .mprot to get original name with extension
+                    String withoutMprot = name.endsWith(FileConfig.ENCRYPTED_EXTENSION)
+                            ? name.substring(0, name.length() - FileConfig.ENCRYPTED_EXTENSION.length())
+                            : name;
+                    int dot = withoutMprot.lastIndexOf('.');
+                    String nameBase = dot > 0 ? withoutMprot.substring(0, dot) : withoutMprot;
+                    String nameExt = dot > 0 ? withoutMprot.substring(dot) : "";
+                    String mprotExt = name.endsWith(FileConfig.ENCRYPTED_EXTENSION)
+                            ? FileConfig.ENCRYPTED_EXTENSION : "";
                     int counter = 1;
                     while (destFile.exists()) {
-                        destFile = new File(targetDir, base + "(" + counter + ")" + ext);
+                        destFile = new File(targetDir, nameBase + "(" + counter + ")" + nameExt + mprotExt);
                         counter++;
                     }
                 }

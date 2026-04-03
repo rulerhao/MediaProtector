@@ -78,16 +78,31 @@ public class AlbumManager {
                 && !name.contains("/") && !name.contains("\\");
     }
 
+    /**
+     * Returns a unique file by appending (1), (2), etc. if the file already exists.
+     * For encrypted files like photo.jpg.mprot, inserts counter before original extension:
+     * photo.jpg.mprot → photo(1).jpg.mprot (not photo.jpg(1).mprot)
+     */
     private static File getUniqueFile(File file) {
         if (!file.exists()) return file;
         String name = file.getName();
-        String base, ext;
-        int dot = name.lastIndexOf('.');
-        if (dot > 0) { base = name.substring(0, dot); ext = name.substring(dot); }
-        else { base = name; ext = ""; }
+        String base, originalExt, mprotExt = "";
+
+        if (name.endsWith(FileConfig.ENCRYPTED_EXTENSION)) {
+            mprotExt = FileConfig.ENCRYPTED_EXTENSION;
+            String withoutMprot = name.substring(0, name.length() - mprotExt.length());
+            int dot = withoutMprot.lastIndexOf('.');
+            if (dot > 0) { base = withoutMprot.substring(0, dot); originalExt = withoutMprot.substring(dot); }
+            else { base = withoutMprot; originalExt = ""; }
+        } else {
+            int dot = name.lastIndexOf('.');
+            if (dot > 0) { base = name.substring(0, dot); originalExt = name.substring(dot); }
+            else { base = name; originalExt = ""; }
+        }
+
         int i = 1;
         File parent = file.getParentFile();
-        while (file.exists()) file = new File(parent, base + "(" + i++ + ")" + ext);
+        while (file.exists()) file = new File(parent, base + "(" + i++ + ")" + originalExt + mprotExt);
         return file;
     }
 }

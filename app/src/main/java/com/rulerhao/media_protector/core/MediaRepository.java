@@ -320,26 +320,44 @@ public class MediaRepository {
 
     /**
      * Returns a unique file by appending (1), (2), etc. if the file already exists.
+     * For encrypted files like photo.jpg.mprot, inserts counter before original extension:
+     * photo.jpg.mprot → photo(1).jpg.mprot (not photo.jpg(1).mprot)
      */
     private File getUniqueFile(File file) {
         if (!file.exists()) return file;
 
         String name = file.getName();
         String baseName;
-        String extension;
-        int dotIndex = name.lastIndexOf('.');
-        if (dotIndex > 0) {
-            baseName = name.substring(0, dotIndex);
-            extension = name.substring(dotIndex);
+        String originalExt;
+        String mprotExt = "";
+
+        // Handle .mprot files specially - insert counter before original extension
+        if (name.endsWith(FileConfig.ENCRYPTED_EXTENSION)) {
+            mprotExt = FileConfig.ENCRYPTED_EXTENSION;
+            String withoutMprot = name.substring(0, name.length() - mprotExt.length());
+            int dotIndex = withoutMprot.lastIndexOf('.');
+            if (dotIndex > 0) {
+                baseName = withoutMprot.substring(0, dotIndex);
+                originalExt = withoutMprot.substring(dotIndex);
+            } else {
+                baseName = withoutMprot;
+                originalExt = "";
+            }
         } else {
-            baseName = name;
-            extension = "";
+            int dotIndex = name.lastIndexOf('.');
+            if (dotIndex > 0) {
+                baseName = name.substring(0, dotIndex);
+                originalExt = name.substring(dotIndex);
+            } else {
+                baseName = name;
+                originalExt = "";
+            }
         }
 
         int counter = 1;
         File parent = file.getParentFile();
         while (file.exists()) {
-            file = new File(parent, baseName + "(" + counter + ")" + extension);
+            file = new File(parent, baseName + "(" + counter + ")" + originalExt + mprotExt);
             counter++;
         }
         return file;

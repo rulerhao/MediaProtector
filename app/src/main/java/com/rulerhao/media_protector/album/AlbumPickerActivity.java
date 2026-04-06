@@ -59,6 +59,11 @@ public class AlbumPickerActivity extends Activity {
     /** User chose "Remove from Album" (move to root, MODE_MOVE only). */
     public static final int RESULT_TYPE_REMOVE_FROM_ALBUM = 2;
 
+    // ─── Request codes ────────────────────────────────────────────────────
+
+    private static final int REQUEST_PREVIEW_ALBUM = 500;
+    private static final int REQUEST_PREVIEW_MAIN  = 501;
+
     // ─── Fields ───────────────────────────────────────────────────────────
 
     private int mode;
@@ -66,6 +71,7 @@ public class AlbumPickerActivity extends Activity {
     private AlbumAdapter adapter;
     /** Mirror of the regular album dir list, aligned with adapter positions for quick lookup. */
     private List<File> albumDirs;
+    private boolean appliedDark;
 
     // ─── Lifecycle ────────────────────────────────────────────────────────
 
@@ -74,6 +80,7 @@ public class AlbumPickerActivity extends Activity {
         ThemeHelper.applyTheme(this);
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_album_picker);
+        appliedDark = ThemeHelper.isDarkMode(this);
 
         mode      = getIntent().getIntExtra(EXTRA_MODE, MODE_MOVE);
         filePaths = getIntent().getStringArrayListExtra(EXTRA_FILE_PATHS);
@@ -93,6 +100,14 @@ public class AlbumPickerActivity extends Activity {
         grid.setOnItemClickListener((parent, view, pos, id) -> onItemPicked(pos));
 
         buildItems();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (ThemeHelper.isDarkMode(this) != appliedDark) {
+            recreate();
+        }
     }
 
     // ─── Build ────────────────────────────────────────────────────────────
@@ -139,7 +154,32 @@ public class AlbumPickerActivity extends Activity {
         }
 
         if (item.type == AlbumAdapter.TYPE_ACTION) {
-            // position 0 is always the action card
+            // position 0 is always the action card - launch preview for main collection
+            Intent preview = new Intent(this, AlbumPreviewActivity.class);
+            preview.putExtra(AlbumPreviewActivity.EXTRA_ALBUM_PATH, (String) null);
+            preview.putExtra(AlbumPreviewActivity.EXTRA_ALBUM_NAME,
+                    mode == MODE_ENCRYPT
+                            ? getString(R.string.encrypt_to_main)
+                            : getString(R.string.album_remove_from));
+            startActivityForResult(preview, REQUEST_PREVIEW_MAIN);
+            return;
+        }
+
+        // Regular album card — position 0 is the action card, so album index = position - 1
+        File dir = albumDirs.get(position - 1);
+        Intent preview = new Intent(this, AlbumPreviewActivity.class);
+        preview.putExtra(AlbumPreviewActivity.EXTRA_ALBUM_PATH, dir.getAbsolutePath());
+        preview.putExtra(AlbumPreviewActivity.EXTRA_ALBUM_NAME, dir.getName());
+        startActivityForResult(preview, REQUEST_PREVIEW_ALBUM);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (resultCode != RESULT_OK) return;
+
+        if (requestCode == REQUEST_PREVIEW_MAIN) {
+            // User confirmed main collection
             Intent result = new Intent();
             result.putExtra(EXTRA_RESULT_TYPE,
                     mode == MODE_ENCRYPT
@@ -147,16 +187,15 @@ public class AlbumPickerActivity extends Activity {
                             : RESULT_TYPE_REMOVE_FROM_ALBUM);
             setResult(RESULT_OK, result);
             finish();
-            return;
+        } else if (requestCode == REQUEST_PREVIEW_ALBUM && data != null) {
+            // User confirmed a specific album
+            String albumPath = data.getStringExtra(AlbumPreviewActivity.EXTRA_ALBUM_PATH);
+            Intent result = new Intent();
+            result.putExtra(EXTRA_RESULT_TYPE, RESULT_TYPE_ALBUM);
+            result.putExtra(EXTRA_RESULT_ALBUM_PATH, albumPath);
+            setResult(RESULT_OK, result);
+            finish();
         }
-
-        // Regular album card — position 0 is the action card, so album index = position - 1
-        File dir = albumDirs.get(position - 1);
-        Intent result = new Intent();
-        result.putExtra(EXTRA_RESULT_TYPE, RESULT_TYPE_ALBUM);
-        result.putExtra(EXTRA_RESULT_ALBUM_PATH, dir.getAbsolutePath());
-        setResult(RESULT_OK, result);
-        finish();
     }
 
     private void showCreateAlbumDialog() {

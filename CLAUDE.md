@@ -58,6 +58,8 @@ Use `FileStreamFactory` instead — it is the single gateway for all encrypted/p
 | `DecoyWeatherActivity.java` | Weather decoy UI (not wired to disguise system — icon only) |
 | `SectionViewActivity.java` | Grid of files for one date or folder section |
 | `ProtectFileActivity.java` | Entry point for "Share → Protect" intent |
+| `AlbumPickerActivity.java` | Visual album picker grid for Move-to-Album and Encrypt-to-Album flows |
+| `AlbumPreviewActivity.java` | Preview target album contents before confirming selection |
 | `MediaProtectorTileService.java` | Quick Settings tile; shows protected count, opens app on tap |
 | `ProtectedCountWidget.java` | Home screen widget; shows protected file count |
 
@@ -129,6 +131,8 @@ Use `FileStreamFactory` instead — it is the single gateway for all encrypted/p
 | `item_media.xml` | Thumbnail `ImageView` (112dp), filename bar, video badge, `selectionOverlay` + `selectionCheck` (circle ✓ top-right) |
 | `item_album.xml` | Cover `ImageView`, `album_scrim` gradient, `albumName`/`albumCount` overlay |
 | `item_album_add.xml` | Dashed-border card with `+` (add album) |
+| `activity_album_picker.xml` | Toolbar + GridView for album selection |
+| `activity_album_preview.xml` | Toolbar (with confirm ✓) + GridView for album content preview |
 
 ### Key Drawables / Resources
 

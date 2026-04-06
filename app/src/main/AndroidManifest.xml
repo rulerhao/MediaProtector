@@ -66,6 +66,9 @@
             android:name=".album.AlbumPickerActivity"
             android:exported="false" />
         <activity
+            android:name=".album.AlbumPreviewActivity"
+            android:exported="false" />
+        <activity
             android:name=".media.MediaViewerActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize" />

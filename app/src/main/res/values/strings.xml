@@ -146,6 +146,10 @@
     <string name="move_to_main">Main Collection</string>
     <string name="btn_move_to_album">Move</string>
     <string name="btn_cancel">Cancel</string>
+    <string name="btn_confirm">Confirm</string>
+    <string name="btn_back">Back</string>
+    <string name="album_preview_empty">This album is empty</string>
+    <string name="album_preview_info">%d files in this album</string>
     <string name="btn_create">Create</string>
     <string name="btn_ok">OK</string>
 
